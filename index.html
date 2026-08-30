@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BCF Wallet — Best Community Faith</title>
+  <meta name="description" content="Decentralized community finance on BSC" />
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --bg-card: #131313;
+      --bg-card-2: #1a1a1a;
+      --bg-elev: #1f1f1f;
+      --fg: #ffffff;
+      --muted: #9ca3af;
+      --muted-2: #6b7280;
+      --gold: #fbbf24;
+      --gold-2: #f59e0b;
+      --gold-3: #d97706;
+      --gold-deep: #b45309;
+      --gold-soft: rgba(251, 191, 36, 0.1);
+      --gold-border: rgba(251, 191, 36, 0.4);
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif; min-height: 100vh; padding-bottom: 90px; }
+    a { color: var(--gold); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button { font-family: inherit; cursor: pointer; }
+
+    /* Top bar */
+    .topbar { position: sticky; top: 0; z-index: 50; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 0; }
+    .topbar-inner { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-shield { width: 44px; height: 44px; }
+    .topbar-right { display: flex; align-items: center; gap: 14px; }
+    .btn-connect { background: var(--gold); color: #1a1a00; border: 0; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; transition: all 0.15s; }
+    .btn-connect:hover { background: var(--gold-2); transform: translateY(-1px); }
+    .btn-connect:disabled { opacity: 0.5; cursor: not-allowed; }
+    .menu-btn { background: transparent; border: 0; color: var(--fg); padding: 8px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .menu-btn span { display: block; width: 22px; height: 2px; background: var(--fg); border-radius: 1px; }
+    .menu-btn span:nth-child(2) { width: 16px; align-self: flex-end; }
+    .menu-btn span:nth-child(3) { width: 22px; }
+
+    /* Container */
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 24px 0; }
+
+    /* Stat cards — gold border */
+    .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--gold-border); border-radius: 14px; padding: 20px 22px; }
+    .stat-label { color: var(--muted); font-size: 0.85rem; margin-bottom: 10px; }
+    .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-value .unit { font-size: 0.9rem; color: var(--muted); margin-left: 4px; font-weight: 500; }
+    @media (max-width: 768px) { .stat-row { grid-template-columns: 1fr; } }
+
+    /* Hero — Capital Protection (darker yellow) */
+    .hero { background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%); border-radius: 18px; padding: 32px 36px; position: relative; overflow: hidden; margin-bottom: 24px; }
+    .hero::after { content: ""; position: absolute; right: -40px; bottom: -40px; width: 280px; height: 280px; background: radial-gradient(circle, rgba(255,255,255,0.25), transparent 70%); border-radius: 50%; }
+    .hero h2 { font-size: 1.8rem; font-weight: 800; color: #0a0a0a; margin-bottom: 22px; }
+    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 22px; position: relative; z-index: 1; }
+    .hero-col-label { color: rgba(10,10,10,0.7); font-size: 0.85rem; margin-bottom: 4px; }
+    .hero-col-value { color: #0a0a0a; font-size: 1.1rem; font-weight: 700; }
+    .hero-col-value .active { color: #15803d; font-weight: 700; }
+    .hero-btns { display: flex; gap: 12px; position: relative; z-index: 1; }
+    .btn-dark { background: #0a0a0a; color: var(--gold); border: 0; padding: 11px 24px; border-radius: 8px; font-weight: 600; }
+    .btn-dark:hover { background: #1f1f1f; }
+    .btn-outline-dark { background: transparent; color: #0a0a0a; border: 1.5px solid #0a0a0a; padding: 11px 24px; border-radius: 8px; font-weight: 600; }
+    .btn-outline-dark:hover { background: rgba(0,0,0,0.1); }
+    .btn-gold { background: var(--gold); color: #0a0a0a; border: 0; padding: 11px 24px; border-radius: 8px; font-weight: 700; }
+    .btn-gold:hover { background: var(--gold-2); }
+    .btn-gold:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-gold.full { width: 100%; padding: 14px; }
+    .btn-purchase { background: var(--gold-2); color: #0a0a0a; border: 0; padding: 9px 20px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; }
+    .btn-purchase:hover { background: var(--gold-3); }
+    .btn-purchase:disabled { opacity: 0.5; cursor: not-allowed; }
+    @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; } }
+
+    /* Plan cards */
+    .plans-label { color: var(--fg); font-size: 0.95rem; margin: 22px 0 14px; max-width: 720px; }
+    .plan-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+    @media (max-width: 900px) { .plan-row { grid-template-columns: 1fr; } }
+    .plan-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; position: relative; }
+    .plan-title { color: var(--muted); font-size: 0.8rem; text-align: center; margin-bottom: 8px; }
+    .plan-pct { font-size: 2.4rem; font-weight: 800; display: inline-block; margin-right: 8px; }
+    .plan-meta { color: var(--muted); font-size: 0.85rem; }
+    .plan-meta-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+    .plan-meta-row .col-label { color: var(--muted); font-size: 0.7rem; }
+    .plan-meta-row .col-value { color: var(--fg); font-size: 0.9rem; font-weight: 600; }
+    .plan-amount { color: var(--muted); font-size: 0.8rem; margin-top: 8px; }
+    .plan-purchase-btn { position: absolute; right: 18px; top: 24px; }
+
+    /* Notice */
+    .notice { padding: 16px 20px; border-radius: 12px; margin: 20px 0; font-size: 0.9rem; }
+    .notice-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; }
+    .notice-info { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+
+    /* Bottom nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0 14px; z-index: 50; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); background: transparent; border: 0; padding: 6px 12px; font-size: 0.75rem; cursor: pointer; }
+    .nav-item.active { color: var(--gold); }
+    .nav-item svg { width: 22px; height: 22px; }
+    .nav-item:hover { color: var(--gold); }
+
+    /* Page heading */
+    .page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 22px; }
+
+    /* Forms */
+    input, select { width: 100%; padding: 12px 14px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; font-family: inherit; }
+    input:focus, select:focus { outline: none; border-color: var(--gold); }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    .form-row { margin-bottom: 16px; }
+    .pct-row { display: flex; gap: 8px; margin-top: 12px; }
+    .pct-btn { background: var(--bg-card-2); border: 1px solid var(--border); color: var(--fg); padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; flex: 1; }
+    .pct-btn:hover, .pct-btn.active { background: var(--gold); color: #0a0a0a; border-color: var(--gold); }
+    input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; background: var(--bg-card-2); border-radius: 4px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
+    input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
+
+    /* Node tier progression — medals */
+    .tier-progress { display: flex; align-items: center; gap: 4px; margin: 14px 0; }
+    .tier-pip { width: 36px; height: 36px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--muted); position: relative; font-weight: 700; }
+    .tier-pip.completed { background: var(--gold); color: #0a0a0a; border-color: var(--gold); }
+    .tier-pip.active { background: var(--gold-2); color: #0a0a0a; border-color: var(--gold-2); box-shadow: 0 0 12px rgba(251,191,36,0.5); }
+    .tier-pip .medal { font-size: 1.4rem; }
+    .tier-line { flex: 1; height: 3px; background: var(--border); }
+    .tier-line.done { background: var(--gold); }
+    .tier-list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+
+    /* Misc */
+    .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .table th { text-align: left; color: var(--muted); font-weight: 500; padding: 12px 8px; border-bottom: 1px solid var(--border); }
+    .table td { padding: 12px 8px; border-bottom: 1px solid var(--border); }
+    .social-icons { display: flex; gap: 12px; margin-top: 14px; }
+    .social-icons a { width: 36px; height: 36px; border-radius: 50%; background: var(--bg-card-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--fg); }
+    .social-icons a:hover { background: var(--gold); color: #0a0a0a; text-decoration: none; }
+    .qr-block { background: white; padding: 12px; border-radius: 12px; display: inline-block; }
+
+    /* Modal */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .modal.open { display: flex; }
+    .modal-inner { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; }
+    .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
+    .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <a href="#/dashboard" class="logo">
+        <svg class="logo-shield" viewBox="0 0 44 44" fill="none">
+          <defs>
+            <linearGradient id="shieldG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fbbf24"/>
+              <stop offset="100%" stop-color="#d97706"/>
+            </linearGradient>
+          </defs>
+          <path d="M22 2L5 8v11c0 11 7.5 19.5 17 22 9.5-2.5 17-11 17-22V8L22 2z" fill="url(#shieldG)" stroke="#fbbf24" stroke-width="1.5"/>
+          <path d="M22 7L11 11v8c0 7 5 12 11 14 6-2 11-7 11-14v-8L22 7z" fill="#0a0a0a"/>
+          <text x="22" y="24" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="800" font-family="Arial, sans-serif">BCF</text>
+        </svg>
+      </a>
+      <div class="topbar-right">
+        <button class="btn-connect" id="connectBtn">Connect Wallet</button>
+        <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div class="container" id="app"></div>
+
+  <!-- Modal -->
+  <div class="modal" id="modal">
+    <div class="modal-inner" id="modalInner"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-route="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" data-route="node">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L3 7v10l9 5 9-5V7l-9-5z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+      Node
+    </button>
+    <button class="nav-item" data-route="redeem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      Redeem
+    </button>
+    <button class="nav-item" data-route="network">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18"/></svg>
+      Network
+    </button>
+    <button class="nav-item" data-route="account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+      Account
+    </button>
+  </nav>
+
+  <script>
+    // ============================================================
+    // Config
+    // ============================================================
+    const CONFIG = {
+      chainId: 97,
+      chainName: "BSC Testnet",
+      rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
+      explorer: "https://testnet.bscscan.com",
+      addresses: {
+        BCFToken:   "0xc3Fb054a7854A999Cf1a034B33D3eB795dc40D3d",
+        MockUSDT:   "0x91Cbf7A377c3810720A7265955B3E984197d4aB7",
+        Operations: "0x006e3406b667Fdba452ca65187329b73087F151f",
+        Investment: "0x8404dc9C918c587B40ed88Db95Ae6C7761DBdB66",
+        Node:       "0xDc2bB5fcd40962BafC5ab705cc347D6e19f1b1a8",
+        Referral:   "0x5f1F4Bf82C3b0143189cA19d69D57FfC95f7aF1E",
+        Insurance:  "0x870C440e16e5D6B578f392eaA8cbEffa1eBd8024",
+        Dashboard:  "0xAe984E1e5e1d77B725e0Ad4a9f57D1900aFd8cEb",
+      },
+      plans: [
+        { id: 0, name: "Plan A", monthly: 10, months: 20, min: 100,  ins: 70, label: "Auto Selling" },
+        { id: 1, name: "Plan B", monthly: 15, months: 10, min: 500,  ins: 70, label: "Auto Selling" },
+        { id: 2, name: "Plan C", monthly: 25, months: 5,  min: 1000, ins: 70, label: "Auto Selling" },
+      ],
+      // Node tiers with medal icons (used in Node + Network pages)
+      tiers: [
+        { name: "V2", minU: 500,   shares: 5,   desc: "Purchase a 500U node to attain V2 tier.", type: "medal-bronze" },
+        { name: "V3", minU: 1000,  shares: 10,  desc: "Purchase a 1,000U node to attain V3 tier.", type: "medal-gold" },
+        { name: "V3 Premium", minU: 5000, shares: 50, desc: "Purchase a 5,000U node to attain V3 tier.\nMarketing Funds: 1,500 USD over 10 Months\nMeal Allowance: 10 USD/person", type: "medal-gold-big" },
+        { name: "V4", minU: 10000, shares: 100, desc: "Purchase a 10,000U node to attain V4 tier.\nMarketing Funds: 3,000 USD over 10 Months\nMeal Allowance: 10 USD/person", type: "gem-purple" },
+      ],
+    };
+
+    // SVG icon helpers — match original 3D medal/gem designs
+    function tierIcon(type, size = 36) {
+      const s = size;
+      if (type === "medal-bronze") {
+        // V2: hex bronze medal, no wings
+        return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 64 84" fill="none">
+          <defs>
+            <linearGradient id="bG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f59e0b"/><stop offset="0.5" stop-color="#b45309"/><stop offset="1" stop-color="#7c2d12"/></linearGradient>
+            <linearGradient id="bStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+          </defs>
+          <!-- ribbon -->
+          <path d="M22 52 L14 84 L32 70 L50 84 L42 52 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
+          <path d="M22 52 L32 70 L42 52" fill="#991b1b" opacity="0.5"/>
+          <!-- hex body (tall hex) -->
+          <path d="M32 2 L60 16 L60 42 L32 58 L4 42 L4 16 Z" fill="url(#bG)" stroke="#451a03" stroke-width="1.5"/>
+          <!-- inner border -->
+          <path d="M32 8 L54 20 L54 40 L32 52 L10 40 L10 20 Z" fill="none" stroke="#fde68a" stroke-width="1" opacity="0.6"/>
+          <!-- star -->
+          <path d="M32 16 L36 26 L46 26 L38 33 L41 43 L32 36 L23 43 L26 33 L18 26 L28 26 Z" fill="url(#bStar)" stroke="#92400e" stroke-width="0.5"/>
+        </svg>`;
+      }
+      if (type === "medal-gold") {
+        // V3: hex gold medal with wings
+        return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 80 104" fill="none">
+          <defs>
+            <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="0.5" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/></linearGradient>
+            <linearGradient id="gStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbeb"/><stop offset="1" stop-color="#fcd34d"/></linearGradient>
+            <linearGradient id="gWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#a16207"/></linearGradient>
+          </defs>
+          <!-- ribbon -->
+          <path d="M30 64 L20 104 L40 88 L60 104 L50 64 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
+          <path d="M30 64 L40 88 L50 64" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing -->
+          <path d="M22 38 Q 0 32, 0 50 Q 0 60, 18 56 Q 22 50, 22 38 Z" fill="url(#gWing)" stroke="#78350f" stroke-width="0.5"/>
+          <path d="M4 40 Q 8 44, 8 48" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <path d="M4 46 Q 8 50, 8 54" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <!-- right wing -->
+          <path d="M58 38 Q 80 32, 80 50 Q 80 60, 62 56 Q 58 50, 58 38 Z" fill="url(#gWing)" stroke="#78350f" stroke-width="0.5"/>
+          <path d="M76 40 Q 72 44, 72 48" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <path d="M76 46 Q 72 50, 72 54" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <!-- hex body -->
+          <path d="M40 2 L68 16 L68 50 L40 68 L12 50 L12 16 Z" fill="url(#gG)" stroke="#78350f" stroke-width="1.5"/>
+          <!-- inner border -->
+          <path d="M40 8 L62 20 L62 46 L40 60 L18 46 L18 20 Z" fill="none" stroke="#fef3c7" stroke-width="1" opacity="0.7"/>
+          <!-- star -->
+          <path d="M40 20 L44 30 L54 30 L46 37 L49 47 L40 40 L31 47 L34 37 L26 30 L36 30 Z" fill="url(#gStar)" stroke="#92400e" stroke-width="0.5"/>
+        </svg>`;
+      }
+      if (type === "medal-gold-big") {
+        // V3 Premium: bigger hex gold medal with bigger wings
+        return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 96 124" fill="none">
+          <defs>
+            <linearGradient id="ggG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="0.5" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/></linearGradient>
+            <linearGradient id="ggStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbeb"/><stop offset="1" stop-color="#fcd34d"/></linearGradient>
+            <linearGradient id="ggWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#a16207"/></linearGradient>
+          </defs>
+          <!-- ribbon -->
+          <path d="M36 78 L24 124 L48 106 L72 124 L60 78 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
+          <path d="M36 78 L48 106 L60 78" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing (bigger with more detail) -->
+          <path d="M26 46 Q 0 40, 0 60 Q 0 74, 22 70 Q 26 62, 26 46 Z" fill="url(#ggWing)" stroke="#78350f" stroke-width="0.5"/>
+          <path d="M4 48 Q 8 52, 8 56" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <path d="M4 54 Q 10 60, 10 64" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <path d="M6 60 Q 12 66, 14 68" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <!-- right wing -->
+          <path d="M70 46 Q 96 40, 96 60 Q 96 74, 74 70 Q 70 62, 70 46 Z" fill="url(#ggWing)" stroke="#78350f" stroke-width="0.5"/>
+          <path d="M92 48 Q 88 52, 88 56" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <path d="M92 54 Q 86 60, 86 64" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <path d="M90 60 Q 84 66, 82 68" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <!-- hex body (bigger) -->
+          <path d="M48 2 L82 18 L82 60 L48 80 L14 60 L14 18 Z" fill="url(#ggG)" stroke="#78350f" stroke-width="2"/>
+          <path d="M48 10 L74 22 L74 56 L48 70 L22 56 L22 22 Z" fill="none" stroke="#fef3c7" stroke-width="1.2" opacity="0.7"/>
+          <!-- star -->
+          <path d="M48 24 L53 36 L66 36 L55 44 L60 56 L48 48 L36 56 L41 44 L30 36 L43 36 Z" fill="url(#ggStar)" stroke="#92400e" stroke-width="0.8"/>
+        </svg>`;
+      }
+      if (type === "gem-purple") {
+        // V4: hex purple gem with wings
+        return `<svg width="${s+6}" height="${(s+6)*1.3}" viewBox="0 0 88 114" fill="none">
+          <defs>
+            <linearGradient id="pG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="0.5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+            <linearGradient id="pStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+            <linearGradient id="pWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#5b21b6"/></linearGradient>
+          </defs>
+          <!-- ribbon -->
+          <path d="M32 70 L22 114 L44 96 L66 114 L56 70 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
+          <path d="M32 70 L44 96 L56 70" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing -->
+          <path d="M24 42 Q 0 36, 0 56 Q 0 68, 20 64 Q 24 56, 24 42 Z" fill="url(#pWing)" stroke="#3b0764" stroke-width="0.5"/>
+          <path d="M4 44 Q 8 48, 8 52" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <path d="M4 50 Q 10 56, 10 60" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <!-- right wing -->
+          <path d="M64 42 Q 88 36, 88 56 Q 88 68, 68 64 Q 64 56, 64 42 Z" fill="url(#pWing)" stroke="#3b0764" stroke-width="0.5"/>
+          <path d="M84 44 Q 80 48, 80 52" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <path d="M84 50 Q 78 56, 78 60" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <!-- hex body -->
+          <path d="M44 2 L76 16 L76 54 L44 74 L12 54 L12 16 Z" fill="url(#pG)" stroke="#3b0764" stroke-width="1.5"/>
+          <path d="M44 10 L68 22 L68 50 L44 64 L20 50 L20 22 Z" fill="none" stroke="#ede9fe" stroke-width="1" opacity="0.6"/>
+          <!-- crown-like emblem instead of star -->
+          <path d="M30 40 L34 32 L38 38 L44 28 L50 38 L54 32 L58 40 L44 50 Z" fill="url(#pStar)" stroke="#4c1d95" stroke-width="0.5"/>
+        </svg>`;
+      }
+      return "";
+    }
+
+    function giftIcon(size = 40) {
+      return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="giftR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fca5a5"/><stop offset="1" stop-color="#b91c1c"/></linearGradient>
+        </defs>
+        <!-- box bottom -->
+        <path d="M10 30 L10 58 L54 58 L54 30 Z" fill="url(#giftR)" stroke="#7f1d1d" stroke-width="0.8"/>
+        <!-- box top -->
+        <path d="M14 22 L14 32 L50 32 L50 22 Z" fill="url(#giftR)" stroke="#7f1d1d" stroke-width="0.8"/>
+        <!-- vertical ribbon -->
+        <rect x="29" y="22" width="6" height="36" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.4"/>
+        <!-- horizontal ribbon -->
+        <rect x="10" y="26" width="44" height="4" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.4"/>
+        <!-- bow left -->
+        <ellipse cx="22" cy="20" rx="8" ry="5" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(-20 22 20)"/>
+        <!-- bow right -->
+        <ellipse cx="42" cy="20" rx="8" ry="5" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(20 42 20)"/>
+        <!-- knot -->
+        <circle cx="32" cy="20" r="3" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5"/>
+        <!-- heart 1 -->
+        <path d="M32 10 C 30 6, 24 6, 24 12 C 24 16, 32 18, 32 18 C 32 18, 40 16, 40 12 C 40 6, 34 6, 32 10 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(-15 32 14)"/>
+        <!-- heart 2 small -->
+        <path d="M40 6 C 39 4, 36 4, 36 7 C 36 9, 40 10, 40 10 C 40 10, 44 9, 44 7 C 44 4, 41 4, 40 6 Z" fill="#fca5a5" stroke="#7f1d1d" stroke-width="0.4" transform="rotate(15 40 8)"/>
+      </svg>`;
+    }
+
+    const ABIS = {
+      BCFToken: [
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function totalSupply() view returns (uint256)",
+        "function balanceOf(address) view returns (uint256)",
+      ],
+      MockUSDT: [
+        "function balanceOf(address) view returns (uint256)",
+        "function approve(address,uint256) returns (bool)",
+      ],
+      Investment: [
+        "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
+        "function buyPlan(uint8,uint256,address)",
+        "function purchaseCounter() view returns (uint256)",
+      ],
+      Insurance: [
+        "function activate()",
+        "function claim()",
+        "function getUserInsurance(address) view returns (bool,uint256,uint256)",
+      ],
+    };
+
+    // ============================================================
+    // State
+    // ============================================================
+    let state = {
+      account: null,
+      provider: null,
+      signer: null,
+      chainOk: false,
+      deployed: false,
+    };
+    let _selectedPlan = 0;
+    let _nodeAmount = 1000;
+
+    // ============================================================
+    // Wallet
+    // ============================================================
+    async function connectWallet() {
+      if (!window.ethereum) { alert("Please install MetaMask: https://metamask.io/download/"); return; }
+      try {
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        state.account = accounts[0];
+        state.provider = new ethers.BrowserProvider(window.ethereum);
+        state.signer = await state.provider.getSigner();
+        await checkNetwork();
+        await checkDeployment();
+        updateConnectButton();
+        render();
+        window.ethereum.on("accountsChanged", () => location.reload());
+        window.ethereum.on("chainChanged", () => location.reload());
+      } catch (e) { console.error(e); alert("Connection rejected: " + e.message); }
+    }
+
+    async function checkNetwork() {
+      const net = await state.provider.getNetwork();
+      state.chainOk = Number(net.chainId) === CONFIG.chainId;
+    }
+
+    async function checkDeployment() {
+      try {
+        const code = await state.provider.getCode(CONFIG.addresses.BCFToken);
+        state.deployed = code && code !== "0x" && code.length > 2;
+      } catch (e) { state.deployed = false; }
+    }
+
+    async function switchToBSC() {
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x61" }] });
+        location.reload();
+      } catch (e) {
+        if (e.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{ chainId: "0x61", chainName: "BSC Testnet", nativeCurrency: { name: "tBNB", symbol: "tBNB", decimals: 18 }, rpcUrls: [CONFIG.rpcUrl], blockExplorerUrls: [CONFIG.explorer] }],
+          });
+          location.reload();
+        }
+      }
+    }
+
+    function updateConnectButton() {
+      const btn = document.getElementById("connectBtn");
+      if (!btn) return;
+      if (state.account) { btn.textContent = state.account.slice(0, 6) + "..." + state.account.slice(-4); }
+      else { btn.textContent = "Connect Wallet"; btn.onclick = connectWallet; }
+    }
+
+    function getContract(name, withSigner = false) {
+      if (!state.provider) return null;
+      return new ethers.Contract(CONFIG.addresses[name], ABIS[name], withSigner ? state.signer : state.provider);
+    }
+
+    // ============================================================
+    // Helpers
+    // ============================================================
+    function fmt(n, dp = 2) {
+      if (n === 0 || n === "0") return "0";
+      const num = Number(n);
+      if (isNaN(num)) return "—";
+      if (Math.abs(num) >= 1e6) return (num / 1e6).toFixed(dp) + "M";
+      if (Math.abs(num) >= 1e3) return (num / 1e3).toFixed(dp) + "k";
+      return num.toFixed(dp);
+    }
+    function addrShort(a) { return a ? a.slice(0, 6) + "..." + a.slice(-4) : "—"; }
+
+    // ============================================================
+    // Modal
+    // ============================================================
+    function showModal(title, body, btnText = "Close", btnAction = null) {
+      const m = document.getElementById("modal");
+      const inner = document.getElementById("modalInner");
+      inner.innerHTML = `<h3>${title}</h3>${body}<div class="modal-foot"><button class="btn-gold full" id="modalClose">${btnText}</button></div>`;
+      m.classList.add("open");
+      document.getElementById("modalClose").onclick = () => {
+        if (btnAction) btnAction();
+        m.classList.remove("open");
+      };
+    }
+
+    function showInsuranceDetails() {
+      const m = document.getElementById("modal");
+      const inner = document.getElementById("modalInner");
+      const scheduleRows = [
+        ["Month 1", "0% (0 USDT)", "—", "#6b7280"],
+        ["Month 2", "0% (0 USDT)", "—", "#6b7280"],
+        ["Month 3", "0% (0 USDT)", "—", "#6b7280"],
+        ["Month 4", "0% (0 USDT)", "—", "#6b7280"],
+        ["Month 5", "0% (0 USDT)", "—", "#6b7280"],
+        ["Month 6", "0% (No Protection)", "—", "#6b7280"],
+      ];
+      inner.innerHTML = `
+        <div style="background:var(--bg-card-2);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:700px;width:100%;max-height:85vh;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px;">
+            <div>
+              <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:4px;">Investment Plan 1</h2>
+              <div style="height:6px;width:300px;background:var(--bg-elev);border-radius:3px;overflow:hidden;margin-top:12px;">
+                <div style="height:100%;width:0%;background:linear-gradient(90deg,var(--gold),var(--gold-2));"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:0.8rem;">
+                <span style="color:var(--muted);">Protection Status</span>
+                <span style="color:var(--gold);font-weight:700;">0%</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:var(--muted);font-size:0.85rem;">Your USDT Balance</div>
+              <div style="font-size:1.4rem;font-weight:700;color:var(--gold);">0 USDT</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-elev);border-radius:8px;padding:18px;margin-bottom:18px;">
+            <h3 style="font-size:1rem;margin-bottom:14px;color:var(--fg);">Your Protection Status</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px;">
+              <div>
+                <div style="color:var(--muted);font-size:0.85rem;margin-bottom:4px;">Current Protection</div>
+                <div style="font-size:1.5rem;font-weight:700;">0%</div>
+                <div style="color:var(--muted);font-size:0.85rem;margin-top:10px;">Reduces to 0% in</div>
+                <div style="font-size:1.1rem;font-weight:600;font-family:monospace;" id="reduceCountdown">0d:00h:00m:00s</div>
+              </div>
+              <div>
+                <div style="color:var(--muted);font-size:0.85rem;margin-bottom:4px;">Current Month</div>
+                <div style="font-size:1.5rem;font-weight:700;">0/0</div>
+                <div style="color:var(--muted);font-size:0.85rem;margin-top:10px;">BCF Burned</div>
+                <div style="font-size:1.5rem;font-weight:700;">0 USDT</div>
+              </div>
+            </div>
+            <button class="btn-gold full" id="claimProtectionBtn" style="padding:14px;font-size:1rem;" disabled>Claim 0 USDT</button>
+          </div>
+
+          <div>
+            <h3 style="font-size:1rem;margin-bottom:14px;color:var(--fg);">Protection Schedule</h3>
+            <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;font-size:0.9rem;">
+              ${scheduleRows.map(([month, val, status, color]) => `
+                <div style="padding:6px 0;">${month}</div>
+                <div style="padding:6px 0;font-weight:600;">${val}</div>
+                <div style="padding:6px 0;color:${color};font-weight:600;">${status}</div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:20px;">
+            <button class="btn-gold" id="insuranceCloseBtn" style="flex:1;background:var(--bg-card-2);border:1px solid var(--border);">Close</button>
+          </div>
+        </div>
+      `;
+      m.classList.add("open");
+      document.getElementById("insuranceCloseBtn").onclick = () => m.classList.remove("open");
+    }
+
+    // ============================================================
+    // Router
+    // ============================================================
+    function getRoute() {
+      const h = location.hash || "#/dashboard";
+      return h.replace("#", "").replace(/^\//, "") || "dashboard";
+    }
+    function go(r) { location.hash = "#/" + r; }
+
+    // ============================================================
+    // Pages
+    // ============================================================
+    function renderDashboard() {
+      let totalPurchase = 0, totalReturn = 0, networkPerf = 0;
+      let bcfPrice = 0, poolVal = 0, insPoolVal = 0;
+      let inv = 0, currentMonth = "0/0 Months", protection = "Inactive";
+
+      if (state.deployed) {
+        try {
+          const invContract = getContract("Investment");
+          invContract.purchaseCounter().then(counter => {
+            totalPurchase = Number(counter) * 950;
+            totalReturn = totalPurchase * 0.15;
+            networkPerf = totalReturn * 0.5;
+          });
+        } catch (e) { /* mock fallback */ }
+      }
+
+      return `
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-label">My Total Purchase BCF</div>
+            <div class="stat-value">${fmt(totalPurchase)}<span class="unit">USDT</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">My Total Auto Selling BCF Return</div>
+            <div class="stat-value">${fmt(totalReturn)}<span class="unit">USDT</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">My Network Performance</div>
+            <div class="stat-value">${fmt(networkPerf)}<span class="unit">USDT</span></div>
+          </div>
+        </div>
+
+        <div class="stat-row" style="grid-template-columns:repeat(3,1fr);">
+          <div class="stat-card">
+            <div class="stat-label">BCF Price</div>
+            <div class="stat-value">${fmt(bcfPrice, 2)}<span class="unit">USDT</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">BCF Pool Value</div>
+            <div class="stat-value">${fmt(poolVal)}<span class="unit">USDT</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Insurance Pool Value</div>
+            <div class="stat-value">${fmt(insPoolVal)}<span class="unit">USDT</span></div>
+          </div>
+        </div>
+
+        <div class="hero" style="margin-top:8px;margin-bottom:24px;">
+          <h2>Capital Protection</h2>
+          <div class="hero-grid">
+            <div>
+              <div class="hero-col-label">Investment</div>
+              <div class="hero-col-value">${inv} USDT</div>
+            </div>
+            <div>
+              <div class="hero-col-label">Current Month</div>
+              <div class="hero-col-value">${currentMonth}</div>
+            </div>
+            <div>
+              <div class="hero-col-label">Protection</div>
+              <div class="hero-col-value">${protection}</div>
+            </div>
+          </div>
+          <div class="hero-btns">
+            <button class="btn-dark" id="claimIns">Claim</button>
+            <button class="btn-outline-dark" id="viewIns">View Details</button>
+          </div>
+        </div>
+
+        <p class="plans-label">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+
+        <div class="plan-row">
+          ${CONFIG.plans.map(p => `
+            <div class="plan-card">
+              <button class="plan-purchase-btn btn-purchase" data-buy="${p.id}" ${!state.deployed ? 'disabled' : ''}>Purchase</button>
+              <div class="plan-title">BCF Monthly Return</div>
+              <div><span class="plan-pct">${p.monthly}%</span></div>
+              <div class="plan-meta-row">
+                <div><div class="col-label">${p.months} Months</div></div>
+                <div><div class="col-label">${p.ins}%</div><div class="col-value">Insurance</div></div>
+                <div><div class="col-label">$0.00</div></div>
+              </div>
+              <div class="plan-amount">${p.label}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        ${!state.deployed ? `<div class="notice notice-warning"><strong>⏳ Awaiting Testnet Deployment</strong> — Contracts pending. UI is fully built and will activate when contracts go live.</div>` : ''}
+        ${state.account && !state.chainOk ? `<div class="notice notice-warning">⚠️ Wrong network — <a href="#" id="switchNet">switch to BSC Testnet</a></div>` : ''}
+      `;
+    }
+
+    function renderInsurance() {
+      return `
+        <h1 class="page-title">Capital Protection Insurance</h1>
+        <p class="page-sub">70% coverage in early months, decreasing over time</p>
+
+        <div class="hero" style="margin-bottom:20px;">
+          <h2>Capital Protection</h2>
+          <div class="hero-grid">
+            <div>
+              <div class="hero-col-label">Investment</div>
+              <div class="hero-col-value">0 USDT</div>
+            </div>
+            <div>
+              <div class="hero-col-label">Current Month</div>
+              <div class="hero-col-value">0/0 Months</div>
+            </div>
+            <div>
+              <div class="hero-col-label">Protection</div>
+              <div class="hero-col-value">Inactive</div>
+            </div>
+          </div>
+          <div class="hero-btns">
+            <button class="btn-dark" id="claimIns">Claim</button>
+            <button class="btn-outline-dark" id="viewIns">View Details</button>
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:16px;">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;color:var(--gold);">Protection Schedule</h3>
+          <table class="table">
+            <thead><tr><th>Month</th><th>Coverage</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Month 1</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 2</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 3</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 4</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 5</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 6+</td><td>0%</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderNode() {
+      return `
+        <h1 class="page-title">Node System</h1>
+        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to start earning"}</p>
+
+        <div class="stat-card" style="margin-bottom:20px;">
+          <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Your Node</h3>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+            <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;display:flex;align-items:center;gap:6px;">—</div></div>
+            <div><div class="stat-label">Node Dividend</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Node Shares</div><div style="font-weight:700;">0 (100 USDT = 1 Share)</div></div>
+          </div>
+          <div class="tier-progress">
+            ${CONFIG.tiers.map((t, i, arr) => `
+              <div class="tier-pip" style="width:auto;height:auto;background:transparent;border:0;padding:0;opacity:0.5;">
+                ${tierIcon(t.type, 50)}
+              </div>
+              ${i < arr.length - 1 ? `<div class="tier-line"></div>` : ''}
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:20px;">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Weekly Rewards</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
+            <div><div class="stat-label">This Week</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">—</div></div>
+          </div>
+          <button class="btn-gold full" id="viewRewardHistory">View Reward History</button>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:20px;position:relative;padding-right:110px;min-height:120px;">
+          <div style="position:absolute;right:18px;top:18px;">${giftIcon(72)}</div>
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Monthly Bonus</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
+            <div><div class="stat-label">Current Month</div><div style="font-weight:700;">—</div></div>
+            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0%</div></div>
+            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">0 BCF</div></div>
+          </div>
+          <button class="btn-gold full" id="claimBonus">Claim Bonus</button>
+        </div>
+
+        <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 12px;">Available Node Tiers</h3>
+        ${CONFIG.tiers.map((t, idx) => `
+          <div class="stat-card" style="margin-bottom:12px;position:relative;padding-right:120px;min-height:140px;">
+            <div style="position:absolute;right:18px;top:18px;">${tierIcon(t.type, 72)}</div>
+            <h3 style="font-size:0.95rem;margin-bottom:8px;">${t.name} Node — ${fmt(t.minU, 0)} USDT</h3>
+            <div style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;line-height:1.6;white-space:pre-line;">${t.shares} Shares
+${t.desc}</div>
+            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" data-amount="${t.name === 'V3' ? 1000 : (t.name === 'V3 Premium' ? 4000 : (t.name === 'V4' ? 9000 : t.minU))}" ${!state.deployed ? 'disabled' : ''}>${t.name === 'V3' ? 'Purchased' : 'Purchase for ' + (t.name === 'V3 Premium' ? '4,000' : (t.name === 'V4' ? '9,000' : fmt(t.minU, 0))) + ' USDT'}</button>
+          </div>
+        `).join('')}
+
+        <div class="stat-card" style="margin-top:24px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);">
+          <h3 style="font-size:1rem;margin-bottom:8px;color:var(--gold);">Purchase Node - Become a BCF Partner</h3>
+          <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;line-height:1.6;">
+            every 100 usdt get 1 share, can get 5% BCF COIN AND GET 4% Dividend forever<br>
+            Every $100 = 1 Share<br>
+            Earn 5% BCF Bonus + 4% Dividend Forever
+          </p>
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="color:var(--muted);font-size:0.8rem;">Enter Amount in USDT</span>
+              <span style="font-weight:700;display:flex;align-items:center;gap:8px;"><span id="nodeBalanceUsdt" style="background:var(--bg-card-2);padding:2px 6px;border-radius:4px;font-size:0.7rem;">Balance: 0 USDT</span> <span id="nodeAmtLabel" style="color:var(--gold);">${_nodeAmount} USDT</span></span>
+            </div>
+            <input type="range" id="nodeAmount" min="100" max="10000" step="100" value="${_nodeAmount}" />
+            <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:0.7rem;margin-top:4px;">
+              <span>100 USDT</span><span>10,000 USDT</span>
+            </div>
+          </div>
+          <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">USDT (50%):</span>
+              <span style="font-weight:700;" id="nodeUsdtSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--muted);">Credit (50%):</span>
+              <span style="font-weight:700;" id="nodeCreditSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
+              <span style="color:var(--muted);">Shares:</span>
+              <span style="color:var(--gold);font-weight:700;" id="nodeShares">${(_nodeAmount / 100).toFixed(0)}</span>
+            </div>
+          </div>
+          <button class="btn-gold full" id="purchaseNode" ${!state.deployed ? 'disabled' : ''}>Purchase</button>
+        </div>
+      `;
+    }
+
+    function renderRedeem() {
+      return `
+        <h1 class="page-title">Withdraw your USDT</h1>
+        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to withdraw"}</p>
+
+        <div class="stat-card" style="max-width:700px;">
+          <h3 style="font-size:0.95rem;margin-bottom:16px;">Your USDT balance <span style="color:var(--gold);">${state.account && state.deployed ? '...' : '$0.00'}</span></h3>
+
+          <div class="form-row">
+            <label>You Send</label>
+            <div style="display:flex;align-items:center;gap:10px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+              <span style="color:#26a17b;font-size:1.4rem;">₮</span>
+              <input type="number" id="withdrawAmount" value="0" style="background:transparent;border:0;padding:0;font-size:1.1rem;" />
+            </div>
+            <div class="pct-row">
+              <button class="pct-btn" data-pct="25">25%</button>
+              <button class="pct-btn" data-pct="50">50%</button>
+              <button class="pct-btn" data-pct="75">75%</button>
+              <button class="pct-btn" data-pct="100">MAX</button>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px;">
+            <span style="color:var(--muted);font-size:0.85rem;">Slippage</span>
+            <span style="background:var(--bg-card-2);padding:4px 10px;border-radius:6px;font-size:0.85rem;">0.6%</span>
+          </div>
+
+          <button class="btn-gold full" id="withdrawBtn" ${!state.deployed ? 'disabled' : ''}>Withdraw USDT</button>
+
+          <div style="margin-top:20px;">
+            <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Fee Distribution</h4>
+            <div style="font-size:0.85rem;color:var(--muted);line-height:1.8;">
+              <div>6% to providers: <span style="color:var(--fg);">0 USDT</span></div>
+              <div>4% to nodes: <span style="color:var(--fg);">0 USDT</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderNetwork() {
+      const refLink = state.account ? `https://novacast.cc/ref/${state.account}` : "https://novacast.cc/ref/<your-address>";
+      const levels = ["V1","V2","V3","V4"];
+      const earned = ["Locked","Locked","Locked","Locked"];
+      // QR code
+      let qrSvg = "";
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(refLink);
+        qr.make();
+        qrSvg = qr.createSvgTag({ scalable: true, margin: 0, color: "#000", bgColor: "#fff" });
+      } catch (e) { qrSvg = '<div style="width:140px;height:140px;background:#eee;display:flex;align-items:center;justify-content:center;color:#666;font-size:0.7rem;">QR</div>'; }
+
+      return `
+        <h1 class="page-title">Refer & Earn BCF Tokens</h1>
+        <p class="page-sub" style="color:var(--gold);">Invite friends and get rewards for every signup!</p>
+
+        <div class="stat-card" style="margin-bottom:16px;">
+          <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Earnings Breakdown</h3>
+          <div style="background:var(--bg-elev);padding:14px 16px;border-radius:8px;margin-bottom:14px;">
+            <div class="stat-label">Total</div>
+            <div style="font-size:1.6rem;font-weight:700;">0<span class="unit">USDT</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+            <div><div class="stat-label">Direct Referrals</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Team Earnings</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:16px;">
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;">
+            <div><div class="stat-label">Total Referrals</div><div style="font-size:1.4rem;font-weight:700;">0</div></div>
+            <div><div class="stat-label">Total Earned</div><div style="font-size:1.4rem;font-weight:700;">0<span class="unit">USDT</span></div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;">
+            <div><div class="stat-label">Active Level</div><div style="font-size:1.4rem;font-weight:700;">—</div></div>
+            <div><div class="stat-label">Total Team</div><div style="font-size:1.4rem;font-weight:700;">0<span class="unit">users</span></div></div>
+          </div>
+          <div style="margin-top:14px;text-align:center;">
+            <div class="stat-label">Your Referral Link</div>
+            <div style="margin:6px 0 12px;color:var(--gold);font-size:0.85rem;word-break:break-all;">${refLink}</div>
+            <div style="display:flex;justify-content:center;margin-bottom:14px;">
+              <div class="qr-block" style="width:160px;height:160px;">${qrSvg}</div>
+            </div>
+            <button class="btn-gold" id="copyRefLink">Copy Referral Link</button>
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="font-size:0.95rem;">V-Level Progress</h3>
+            <div style="text-align:right;"><div class="stat-label">Current Level</div><div style="color:var(--gold);font-weight:700;">—</div></div>
+          </div>
+          <div class="tier-progress">
+            ${CONFIG.tiers.map((t, i) => `
+              <div class="tier-pip" style="width:auto;height:auto;background:transparent;border:0;padding:0;opacity:0.5;">
+                ${tierIcon(t.type, 50)}
+              </div>
+              ${i < CONFIG.tiers.length - 1 ? `<div class="tier-line"></div>` : ''}
+            `).join('')}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted);margin-bottom:14px;">
+            ${levels.map((l, i) => `<div>${l}: Locked</div>`).join('')}
+          </div>
+          <h4 style="color:var(--gold);font-size:0.85rem;margin-bottom:8px;">Complete Challenges To Unlock V1</h4>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;font-size:0.85rem;">
+            <div><div class="stat-label">Referrals</div><div style="font-weight:700;">0/3</div></div>
+            <div><div class="stat-label">Team Volume</div><div style="font-weight:700;">0 USDT / 10,000 USDT</div></div>
+            <div><div class="stat-label">Status</div><div style="color:var(--muted);font-weight:700;">Inactive</div></div>
+          </div>
+          <h4 style="font-size:0.85rem;margin-bottom:8px;">Next Level Rewards</h4>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.7;margin-bottom:14px;">
+            <div>0 USDT</div>
+            <div>0% V1 Team Commission Boost</div>
+            <div>V1 Badge</div>
+            <div>Claimable Rewards</div>
+            <div>0 USDT</div>
+          </div>
+          <button class="btn-gold full" id="claimRewards" ${!state.deployed ? 'disabled' : ''}>Claim Rewards</button>
+        </div>
+
+        <div class="stat-card">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Referral List</h3>
+          <table class="table">
+            <thead><tr><th>Name</th><th>Level</th><th>Referrals</th><th>BCF Rewards</th><th>Status</th><th>Joined On</th></tr></thead>
+            <tbody>
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">No referrals yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderAccount() {
+      const name = state.account ? `User ${state.account.slice(2, 6)}` : "—";
+      return `
+        <h1 class="page-title">Welcome Back ${name}</h1>
+        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to view your account"}</p>
+
+        <div class="stat-card" style="margin-bottom:20px;">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Account Details</h3>
+          <div style="background:var(--bg-elev);padding:16px;border-radius:8px;margin-bottom:20px;">
+            <div class="stat-label">My Total Investment</div>
+            <div style="font-size:1.6rem;font-weight:700;">0<span class="unit">USDT</span></div>
+          </div>
+          <h4 style="font-size:0.95rem;margin-bottom:12px;">Join BCF Community</h4>
+          <div class="social-icons">
+            <a href="#" aria-label="Facebook"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z"/></svg></a>
+            <a href="#" aria-label="LinkedIn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg></a>
+            <a href="#" aria-label="Twitter"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 01-1.93.07 4.28 4.28 0 004 2.98 8.521 8.521 0 01-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/></svg></a>
+            <a href="#" aria-label="YouTube"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg></a>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+            <div>
+              <h3 style="color:var(--gold);text-align:center;font-size:1rem;padding-bottom:8px;border-bottom:2px solid var(--gold);margin-bottom:14px;">Investment List</h3>
+              <p style="color:var(--muted);text-align:center;padding:20px 0;">No investments yet</p>
+            </div>
+            <div>
+              <h3 style="color:var(--gold);text-align:center;font-size:1rem;padding-bottom:8px;border-bottom:2px solid var(--muted-2);margin-bottom:14px;color:var(--muted);">Redemption List</h3>
+              <p style="color:var(--muted);text-align:center;padding:20px 0;">No redemptions yet</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ============================================================
+    // Render
+    // ============================================================
+    async function render() {
+      updateConnectButton();
+      const route = getRoute();
+      document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.route === route));
+      const app = document.getElementById("app");
+      let content = "";
+      if (route === "dashboard") content = renderDashboard();
+      else if (route === "node") content = renderNode();
+      else if (route === "redeem") content = renderRedeem();
+      else if (route === "network") content = renderNetwork();
+      else if (route === "account") content = renderAccount();
+      else if (route === "insurance") content = renderInsurance();
+      else content = renderDashboard();
+      app.innerHTML = content;
+
+      // bind handlers
+      const switchLink = document.getElementById("switchNet");
+      if (switchLink) switchLink.addEventListener("click", (e) => { e.preventDefault(); switchToBSC(); });
+
+      document.querySelectorAll("[data-buy]").forEach(btn => {
+        btn.addEventListener("click", () => go("redeem"));
+      });
+
+      // Dashboard — Claim / View Details
+      const claimInsDash = document.getElementById("claimIns");
+      if (claimInsDash) claimInsDash.addEventListener("click", () => {
+        showModal(
+          "Capital Protection",
+          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
+            ✓ Enjoy coverage up to 70% in early months<br>
+            ✓ Claim protection anytime during plan period<br>
+            ✓ Simple one-click activation
+          </p>`,
+          "ACTIVATE INSURANCE NOW",
+          async () => {
+            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+            if (!state.account) { await connectWallet(); return; }
+            try {
+              const ins = getContract("Insurance", true);
+              const tx = await ins.activate();
+              alert("Insurance activation submitted! Tx: " + tx.hash);
+            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
+          }
+        );
+      });
+      const viewInsDash = document.getElementById("viewIns");
+      if (viewInsDash) viewInsDash.addEventListener("click", () => {
+        showInsuranceDetails();
+      });
+
+      // Insurance page Claim / View Details
+      const claimInsPage = document.querySelector(".stat-card #claimIns");
+      if (claimInsPage) claimInsPage.addEventListener("click", () => {
+        showModal(
+          "Capital Protection",
+          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
+            ✓ Enjoy coverage up to 70% in early months<br>
+            ✓ Claim protection anytime during plan period<br>
+            ✓ Simple one-click activation
+          </p>`,
+          "ACTIVATE INSURANCE NOW",
+          async () => {
+            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+            if (!state.account) { await connectWallet(); return; }
+            try {
+              const ins = getContract("Insurance", true);
+              const tx = await ins.activate();
+              alert("Insurance activation submitted! Tx: " + tx.hash);
+            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
+          }
+        );
+      });
+      const viewInsPage = document.querySelector(".stat-card #viewIns");
+      if (viewInsPage) viewInsPage.addEventListener("click", () => showInsuranceDetails());
+
+      // Node — View Reward History
+      const viewHist = document.getElementById("viewRewardHistory");
+      if (viewHist) viewHist.addEventListener("click", () => {
+        showModal("Reward History", `
+          <p style="text-align:center;color:var(--muted);padding:20px 0;">No reward history yet</p>
+        `);
+      });
+      // Node — Claim Bonus
+      const claimBonus = document.getElementById("claimBonus");
+      if (claimBonus) claimBonus.addEventListener("click", () => {
+        showModal("Monthly Bonus Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 BCF</strong> as month 1 bonus.</p>");
+      });
+      // Node — Tier buy buttons
+      document.querySelectorAll(".node-tier-buy").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (btn.textContent.trim() === "Purchased") return;
+          showModal("Purchase Node", `<p>You are purchasing a <strong>${btn.dataset.tier} Node</strong>.</p><p style='color:var(--muted);margin-top:8px;'>In production, this triggers the smart contract buyNode() call with the matching USDT amount.</p>`);
+        });
+      });
+
+      // Node — Purchase Node (BCF Partner) section
+      const nodeSlider = document.getElementById("nodeAmount");
+      if (nodeSlider) {
+        nodeSlider.addEventListener("input", (e) => {
+          _nodeAmount = Number(e.target.value);
+          document.getElementById("nodeAmtLabel").textContent = _nodeAmount + " USDT";
+          document.getElementById("nodeUsdtSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
+          document.getElementById("nodeCreditSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
+          document.getElementById("nodeShares").textContent = (_nodeAmount / 100).toFixed(0);
+        });
+        document.getElementById("purchaseNode").addEventListener("click", () => {
+          showModal("BCF Partner Purchase", `<p>You are purchasing <strong>${_nodeAmount} USDT</strong> worth of node shares (${(_nodeAmount/100).toFixed(0)} shares).</p><p style='color:var(--muted);margin-top:8px;'>In production, this calls buyNode() on the Node contract.</p>`);
+        });
+      }
+
+      // Network — Claim Rewards
+      const claimRew = document.getElementById("claimRewards");
+      if (claimRew) claimRew.addEventListener("click", () => {
+        showModal("Rewards Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 USDT</strong> in referral rewards.</p>");
+      });
+
+      // Redeem — pct buttons
+      document.querySelectorAll("[data-pct]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const pct = Number(btn.dataset.pct);
+          const amt = (74.96 * pct / 100).toFixed(2);
+          const inp = document.getElementById("withdrawAmount");
+          if (inp) inp.value = amt;
+          document.querySelectorAll("[data-pct]").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+        });
+      });
+      const wdraw = document.getElementById("withdrawBtn");
+      if (wdraw) wdraw.addEventListener("click", () => {
+        showModal("Withdraw", "<p>Withdraw transaction would be submitted to the smart contract.</p>");
+      });
+
+      // Network — copy
+      const copyBtn = document.getElementById("copyRefLink");
+      if (copyBtn) copyBtn.addEventListener("click", () => {
+        const link = state.account ? `https://novacast.cc/ref/${state.account}` : "https://novacast.cc/ref/your-address";
+        navigator.clipboard.writeText(link);
+        copyBtn.textContent = "✓ Copied!";
+        setTimeout(() => copyBtn.textContent = "Copy Referral Link", 2000);
+      });
+    }
+
+    // Init
+    document.getElementById("connectBtn").addEventListener("click", connectWallet);
+    document.getElementById("menuBtn").addEventListener("click", () => {
+      showModal("Menu", `
+        <p style='color:var(--muted);margin-bottom:12px;'>Quick navigation</p>
+        <div style='display:flex;flex-direction:column;gap:8px;'>
+          <button class='btn-gold' onclick='location.hash="#/dashboard"'>Dashboard</button>
+          <button class='btn-gold' onclick='location.hash="#/insurance"'>Capital Protection</button>
+          <button class='btn-gold' onclick='location.hash="#/network"'>Network</button>
+        </div>
+      `);
+    });
+    document.querySelectorAll(".nav-item").forEach(b => {
+      b.addEventListener("click", () => go(b.dataset.route));
+    });
+    window.addEventListener("hashchange", render);
+    render();
+  </script>
+</body>
+</html>
