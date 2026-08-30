@@ -36,8 +36,8 @@
     /* Top bar */
     .topbar { position: sticky; top: 0; z-index: 50; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 0; }
     .topbar-inner { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-    .logo { display: flex; align-items: center; gap: 10px; }
-    .logo-shield { width: 44px; height: 44px; }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-shield { width: 140px; height: auto; }
     .topbar-right { display: flex; align-items: center; gap: 14px; }
     .btn-connect { background: var(--gold); color: #1a1a00; border: 0; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; transition: all 0.15s; }
     .btn-connect:hover { background: var(--gold-2); transform: translateY(-1px); }
@@ -156,17 +156,51 @@
   <div class="topbar">
     <div class="topbar-inner">
       <a href="#/dashboard" class="logo">
-        <svg class="logo-shield" viewBox="0 0 44 44" fill="none">
+        <svg class="logo-shield" viewBox="0 0 200 60" fill="none" style="width:140px;height:auto;">
           <defs>
-            <linearGradient id="shieldG" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#fbbf24"/>
-              <stop offset="100%" stop-color="#d97706"/>
+            <linearGradient id="goldG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fef3c7"/>
+              <stop offset="30%" stop-color="#fbbf24"/>
+              <stop offset="70%" stop-color="#d97706"/>
+              <stop offset="100%" stop-color="#92400e"/>
+            </linearGradient>
+            <linearGradient id="darkBG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#451a03"/>
+              <stop offset="100%" stop-color="#1c0a02"/>
             </linearGradient>
           </defs>
-          <path d="M22 2L5 8v11c0 11 7.5 19.5 17 22 9.5-2.5 17-11 17-22V8L22 2z" fill="url(#shieldG)" stroke="#fbbf24" stroke-width="1.5"/>
-          <path d="M22 7L11 11v8c0 7 5 12 11 14 6-2 11-7 11-14v-8L22 7z" fill="#0a0a0a"/>
-          <text x="22" y="24" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="800" font-family="Arial, sans-serif">BCF</text>
+          <!-- decorative crown / laurel top -->
+          <g fill="url(#goldG)" stroke="#92400e" stroke-width="0.3">
+            <!-- center shield -->
+            <path d="M100 12 L86 16 L86 30 Q86 42 100 47 Q114 42 114 30 L114 16 Z" fill="url(#darkBG)"/>
+            <path d="M100 12 L86 16 L86 30 Q86 42 100 47 Q114 42 114 30 L114 16 Z" fill="none" stroke="url(#goldG)" stroke-width="1.5"/>
+            <text x="100" y="33" text-anchor="middle" fill="url(#goldG)" font-size="11" font-weight="800" font-family="Georgia, serif">BCF</text>
+            <!-- left laurel -->
+            <path d="M86 18 Q70 14 60 22 Q56 26 62 30 Q72 32 86 30" fill="url(#goldG)"/>
+            <path d="M86 22 Q75 20 68 25" fill="none" stroke="#92400e" stroke-width="0.4"/>
+            <path d="M86 26 Q76 26 70 29" fill="none" stroke="#92400e" stroke-width="0.4"/>
+            <!-- right laurel -->
+            <path d="M114 18 Q130 14 140 22 Q144 26 138 30 Q128 32 114 30" fill="url(#goldG)"/>
+            <path d="M114 22 Q125 20 132 25" fill="none" stroke="#92400e" stroke-width="0.4"/>
+            <path d="M114 26 Q124 26 130 29" fill="none" stroke="#92400e" stroke-width="0.4"/>
+            <!-- top crown spike -->
+            <path d="M100 4 L97 11 L100 12 L103 11 Z" fill="url(#goldG)"/>
+            <!-- side scrolls -->
+            <path d="M40 26 Q30 30 32 38 Q40 36 50 32" fill="url(#goldG)" opacity="0.9"/>
+            <path d="M160 26 Q170 30 168 38 Q160 36 150 32" fill="url(#goldG)" opacity="0.9"/>
+            <!-- bottom flourish -->
+            <path d="M60 44 Q80 50 100 50 Q120 50 140 44" fill="none" stroke="url(#goldG)" stroke-width="1.2"/>
+            <circle cx="60" cy="44" r="2" fill="url(#goldG)"/>
+            <circle cx="140" cy="44" r="2" fill="url(#goldG)"/>
+            <path d="M100 50 L98 56 L100 58 L102 56 Z" fill="url(#goldG)"/>
+          </g>
+          <!-- main text BEST COMMUNITY FAITH -->
+          <text x="100" y="36" text-anchor="middle" fill="url(#goldG)" font-size="0" font-weight="700" font-family="Georgia, serif" letter-spacing="0"></text>
         </svg>
+        <span style="display:flex;flex-direction:column;line-height:1;">
+          <span style="font-size:0.7rem;letter-spacing:3px;color:var(--gold);font-weight:700;">BEST COMMUNITY</span>
+          <span style="font-size:1.15rem;letter-spacing:1px;color:var(--gold);font-weight:800;background:linear-gradient(135deg,#fef3c7,#fbbf24,#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">BCF WALLET</span>
+        </span>
       </a>
       <div class="topbar-right">
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
