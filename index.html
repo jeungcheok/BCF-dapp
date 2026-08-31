@@ -410,6 +410,8 @@
       MockUSDT: [
         "function balanceOf(address) view returns (uint256)",
         "function approve(address,uint256) returns (bool)",
+        "function mint(address,uint256)",
+        "function owner() view returns (address)",
       ],
       Investment: [
         "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
@@ -422,6 +424,9 @@
         "function getUserInsurance(address) view returns (bool,uint256,uint256)",
       ],
     };
+
+    // MockUSDT owner (deployer)
+    const MOCK_USDT_OWNER = "0xfEf0bd6F55b755602b69fA7a62CBC98E41f14cff";
 
     // ============================================================
     // State
@@ -485,8 +490,91 @@
     function updateConnectButton() {
       const btn = document.getElementById("connectBtn");
       if (!btn) return;
-      if (state.account) { btn.textContent = state.account.slice(0, 6) + "..." + state.account.slice(-4); }
-      else { btn.textContent = "Connect Wallet"; btn.onclick = connectWallet; }
+      if (state.account) {
+        btn.innerHTML = `<span>${state.account.slice(0, 6)}...${state.account.slice(-4)}</span> <span style="font-size:0.7em;margin-left:4px;">▾</span>`;
+        btn.onclick = toggleAccountMenu;
+      } else {
+        btn.textContent = "Connect Wallet";
+        btn.onclick = connectWallet;
+      }
+    }
+
+    function toggleAccountMenu(e) {
+      if (e) e.stopPropagation();
+      const existing = document.getElementById("accountMenu");
+      if (existing) { existing.remove(); return; }
+      const menu = document.createElement("div");
+      menu.id = "accountMenu";
+      menu.style.cssText = `position:absolute;top:60px;right:24px;background:#1a1a1a;border:1px solid rgba(251,191,36,0.3);border-radius:12px;padding:14px;min-width:280px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.5);`;
+      const explorerUrl = `${CONFIG.explorer}/address/${state.account}`;
+      menu.innerHTML = `
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);">
+          <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:4px;">Connected Account</div>
+          <div style="font-family:monospace;font-size:0.85rem;word-break:break-all;color:#fbbf24;">${state.account}</div>
+          ${state.chainOk
+            ? '<div style="margin-top:6px;font-size:0.75rem;color:#10b981;">✓ Connected to BSC Testnet</div>'
+            : '<div style="margin-top:6px;font-size:0.75rem;color:#ef4444;">⚠ Wrong network</div>'}
+        </div>
+        <button class="account-menu-btn" data-action="copy" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:transparent;border:0;color:#fff;cursor:pointer;border-radius:6px;font-size:0.9rem;text-align:left;">
+          <span>📋</span><span>Copy Address</span>
+        </button>
+        <button class="account-menu-btn" data-action="explorer" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:transparent;border:0;color:#fff;cursor:pointer;border-radius:6px;font-size:0.9rem;text-align:left;">
+          <span>🔗</span><span>View on BSCScan</span>
+        </button>
+        <button class="account-menu-btn" data-action="switch" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:transparent;border:0;color:#fff;cursor:pointer;border-radius:6px;font-size:0.9rem;text-align:left;">
+          <span>🔄</span><span>${state.chainOk ? 'Switch Network' : 'Switch to BSC Testnet'}</span>
+        </button>
+        <div style="height:1px;background:rgba(255,255,255,0.1);margin:6px 0;"></div>
+        <button class="account-menu-btn" data-action="disconnect" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:transparent;border:0;color:#ef4444;cursor:pointer;border-radius:6px;font-size:0.9rem;text-align:left;font-weight:600;">
+          <span>🚪</span><span>Disconnect</span>
+        </button>
+      `;
+      document.body.appendChild(menu);
+      // Bind menu buttons
+      menu.querySelectorAll(".account-menu-btn").forEach(b => {
+        b.addEventListener("mouseenter", () => b.style.background = "rgba(255,255,255,0.05)");
+        b.addEventListener("mouseleave", () => b.style.background = "transparent");
+        b.addEventListener("click", (ev) => handleAccountAction(ev.target.closest("button").dataset.action));
+      });
+      // Close on outside click
+      setTimeout(() => {
+        document.addEventListener("click", closeAccountMenu, { once: true });
+      }, 100);
+    }
+
+    function closeAccountMenu() {
+      const m = document.getElementById("accountMenu");
+      if (m) m.remove();
+    }
+
+    async function handleAccountAction(action) {
+      closeAccountMenu();
+      if (action === "copy") {
+        try {
+          await navigator.clipboard.writeText(state.account);
+          alert("Address copied:\n" + state.account);
+        } catch (e) {
+          alert("Copy failed: " + e.message);
+        }
+      } else if (action === "explorer") {
+        window.open(`${CONFIG.explorer}/address/${state.account}`, "_blank");
+      } else if (action === "switch") {
+        await switchToBSC();
+      } else if (action === "disconnect") {
+        if (window.ethereum && window.ethereum.removeAllListeners) {
+          // Just clear local state — MetaMask doesn't have a "disconnect" API
+          // The user can also disconnect from MetaMask itself
+        }
+        state.account = null;
+        state.provider = null;
+        state.signer = null;
+        state.chainOk = false;
+        state.deployed = false;
+        updateConnectButton();
+        // Force re-render to clear all user-specific data
+        render();
+        alert("Disconnected locally.\n\n(Note: To fully disconnect, also click the MetaMask icon → Connected sites → Disconnect this site)");
+      }
     }
 
     function getContract(name, withSigner = false) {
@@ -691,6 +779,12 @@
 
         ${!state.deployed ? `<div class="notice notice-warning"><strong>⏳ Awaiting Testnet Deployment</strong> — Contracts pending. UI is fully built and will activate when contracts go live.</div>` : ''}
         ${state.account && !state.chainOk ? `<div class="notice notice-warning">⚠️ Wrong network — <a href="#" id="switchNet">switch to BSC Testnet</a></div>` : ''}
+        ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() && state.deployed ? `
+          <div class="notice notice-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <span><strong>🛠 Owner Panel</strong> — Connected as MockUSDT owner. Mint test USDT:</span>
+            <button class="btn-purchase" id="mintUsdt" style="position:static;">Mint 10,000 USDT</button>
+          </div>
+        ` : ''}
       `;
     }
 
@@ -870,7 +964,7 @@ ${t.desc}</div>
     }
 
     function renderNetwork() {
-      const refLink = state.account ? `https://novacast.cc/ref/${state.account}` : "https://novacast.cc/ref/<your-address>";
+      const refLink = state.account ? `https://bcf-dapp.vercel.app/ref/${state.account}` : "https://bcf-dapp.vercel.app/ref/<your-address>";
       const levels = ["V1","V2","V3","V4"];
       const earned = ["Locked","Locked","Locked","Locked"];
       // QR code
@@ -1053,6 +1147,26 @@ ${t.desc}</div>
         showInsuranceDetails();
       });
 
+      // Owner — Mint 10,000 USDT (test)
+      const mintUsdt = document.getElementById("mintUsdt");
+      if (mintUsdt) mintUsdt.addEventListener("click", async () => {
+        try {
+          const usdt = getContract("MockUSDT", true);
+          const amount = ethers.parseUnits("10000", 18);
+          mintUsdt.textContent = "Minting...";
+          mintUsdt.disabled = true;
+          const tx = await usdt.mint(state.account, amount);
+          await tx.wait();
+          mintUsdt.textContent = "✓ Minted 10,000 USDT";
+          alert("✅ Minted 10,000 USDT!\n\nTx: " + tx.hash + "\n\nYour balance is now updated.");
+          setTimeout(() => { mintUsdt.textContent = "Mint 10,000 USDT"; mintUsdt.disabled = false; }, 3000);
+        } catch (e) {
+          alert("Mint failed: " + (e.reason || e.message));
+          mintUsdt.textContent = "Mint 10,000 USDT";
+          mintUsdt.disabled = false;
+        }
+      });
+
       // Insurance page Claim / View Details
       const claimInsPage = document.querySelector(".stat-card #claimIns");
       if (claimInsPage) claimInsPage.addEventListener("click", () => {
@@ -1139,7 +1253,7 @@ ${t.desc}</div>
       // Network — copy
       const copyBtn = document.getElementById("copyRefLink");
       if (copyBtn) copyBtn.addEventListener("click", () => {
-        const link = state.account ? `https://novacast.cc/ref/${state.account}` : "https://novacast.cc/ref/your-address";
+        const link = state.account ? `https://bcf-dapp.vercel.app/ref/${state.account}` : "https://bcf-dapp.vercel.app/ref/your-address";
         navigator.clipboard.writeText(link);
         copyBtn.textContent = "✓ Copied!";
         setTimeout(() => copyBtn.textContent = "Copy Referral Link", 2000);
