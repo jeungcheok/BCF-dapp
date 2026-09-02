@@ -779,6 +779,29 @@
 
         ${!state.deployed ? `<div class="notice notice-warning"><strong>⏳ Awaiting Testnet Deployment</strong> — Contracts pending. UI is fully built and will activate when contracts go live.</div>` : ''}
         ${state.account && !state.chainOk ? `<div class="notice notice-warning">⚠️ Wrong network — <a href="#" id="switchNet">switch to BSC Testnet</a></div>` : ''}
+        ${state.account && state.deployed ? `
+          <div class="stat-card" style="background:linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05));border:1px solid var(--gold-border);">
+            <h3 style="font-size:0.95rem;margin-bottom:14px;color:var(--gold);">💰 Your Test Wallet</h3>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+              <div>
+                <div class="stat-label">USDT Balance</div>
+                <div style="font-size:1.4rem;font-weight:700;color:var(--gold);" id="dashUsdtBal"><span class="loader"></span></div>
+              </div>
+              <div>
+                <div class="stat-label">BCF Balance</div>
+                <div style="font-size:1.4rem;font-weight:700;" id="dashBcfBal"><span class="loader"></span></div>
+              </div>
+              <div>
+                <div class="stat-label">Network</div>
+                <div style="font-size:1rem;font-weight:700;color:${state.chainOk ? '#10b981' : '#ef4444'};">${state.chainOk ? 'BSC Testnet ✓' : 'Wrong Network'}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px;">
+              <button class="btn-purchase" id="copyAddrBtn" style="position:static;flex:1;">📋 Copy Address</button>
+              <a href="${CONFIG.explorer}/address/${state.account}" target="_blank" rel="noopener" class="btn-purchase" style="position:static;flex:1;text-decoration:none;display:flex;align-items:center;justify-content:center;">🔗 View on BSCScan</a>
+            </div>
+          </div>
+        ` : ''}
         ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() && state.deployed ? `
           <div class="notice notice-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
             <span><strong>🛠 Owner Panel</strong> — Connected as MockUSDT owner. Mint test USDT:</span>
@@ -929,7 +952,7 @@ ${t.desc}</div>
         <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to withdraw"}</p>
 
         <div class="stat-card" style="max-width:700px;">
-          <h3 style="font-size:0.95rem;margin-bottom:16px;">Your USDT balance <span style="color:var(--gold);">${state.account && state.deployed ? '...' : '$0.00'}</span></h3>
+          <h3 style="font-size:0.95rem;margin-bottom:16px;">Your USDT balance <span style="color:var(--gold);font-weight:700;font-size:1.1rem;" id="usdtBalance">${state.account ? '<span class="loader"></span>' : '$0.00'}</span></h3>
 
           <div class="form-row">
             <label>You Send</label>
@@ -1098,6 +1121,37 @@ ${t.desc}</div>
     // ============================================================
     async function render() {
       updateConnectButton();
+
+      // Fetch live wallet balances (USDT + BCF) for dashboard display
+      if (state.account && state.deployed && state.provider) {
+        // Run async without blocking render
+        (async () => {
+          try {
+            const usdtC = getContract("MockUSDT");
+            const bcfC = getContract("BCFToken");
+            const [usdtBal, bcfBal] = await Promise.all([
+              usdtC.balanceOf(state.account).catch(() => 0n),
+              bcfC.balanceOf(state.account).catch(() => 0n),
+            ]);
+            const usdtEl = document.getElementById("dashUsdtBal");
+            const bcfEl = document.getElementById("dashBcfBal");
+            if (usdtEl) usdtEl.innerHTML = Number(ethers.formatUnits(usdtBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            if (bcfEl) bcfEl.innerHTML = Number(ethers.formatUnits(bcfBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+          } catch (e) { console.error("Balance fetch error:", e); }
+        })();
+        // Also fetch USDT balance for Redeem page
+        setTimeout(() => {
+          const usdtEl2 = document.getElementById("usdtBalance");
+          if (usdtEl2) {
+            const usdtC = getContract("MockUSDT");
+            usdtC.balanceOf(state.account).then(bal => {
+              usdtEl2.innerHTML = "$" + Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            }).catch(() => {
+              usdtEl2.innerHTML = "$0.00";
+            });
+          }
+        }, 100);
+      }
       const route = getRoute();
       document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.route === route));
       const app = document.getElementById("app");
@@ -1160,10 +1214,24 @@ ${t.desc}</div>
           mintUsdt.textContent = "✓ Minted 10,000 USDT";
           alert("✅ Minted 10,000 USDT!\n\nTx: " + tx.hash + "\n\nYour balance is now updated.");
           setTimeout(() => { mintUsdt.textContent = "Mint 10,000 USDT"; mintUsdt.disabled = false; }, 3000);
+          // Re-fetch balance
+          render();
         } catch (e) {
           alert("Mint failed: " + (e.reason || e.message));
           mintUsdt.textContent = "Mint 10,000 USDT";
           mintUsdt.disabled = false;
+        }
+      });
+
+      // Dashboard — Copy Address
+      const copyAddrBtn = document.getElementById("copyAddrBtn");
+      if (copyAddrBtn) copyAddrBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(state.account);
+          copyAddrBtn.textContent = "✓ Copied!";
+          setTimeout(() => copyAddrBtn.textContent = "📋 Copy Address", 2000);
+        } catch (e) {
+          alert("Copy failed: " + e.message);
         }
       });
 
