@@ -946,6 +946,77 @@ ${t.desc}</div>
       `;
     }
 
+    function renderInvest() {
+      let _selPlan = _selectedPlan;
+      return `
+        <h1 class="page-title">Invest in BCF Plans</h1>
+        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to invest"}</p>
+
+        ${state.account && state.deployed ? `
+          <div class="stat-card" style="background:linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05));border:1px solid var(--gold-border);margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+              <div><div class="stat-label">Your USDT</div><div style="font-size:1.3rem;font-weight:700;color:var(--gold);" id="invUsdt">—</div></div>
+              <div><div class="stat-label">Your BCF</div><div style="font-size:1.3rem;font-weight:700;" id="invBcf">—</div></div>
+              <div><div class="stat-label">Active Plans</div><div style="font-size:1.3rem;font-weight:700;color:#10b981;" id="invActive">0</div></div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="plan-row" style="margin-bottom:16px;">
+          ${CONFIG.plans.map((p, idx) => `
+            <div class="plan-card inv-plan ${idx === _selPlan ? 'active' : ''}" data-plan="${idx}" style="cursor:pointer;${idx === _selPlan ? 'border-color:var(--gold);background:rgba(59,130,246,0.05);' : ''}">
+              <div class="plan-title">BCF Monthly Return</div>
+              <div><span class="plan-pct">${p.monthly}%</span></div>
+              <div class="plan-meta-row">
+                <div><div class="col-label">${p.months} Months</div></div>
+                <div><div class="col-label">${p.ins}%</div><div class="col-value">Insurance</div></div>
+                <div><div class="col-label">$${p.min}+</div></div>
+              </div>
+              <div class="plan-amount">${p.label}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="stat-card" style="max-width:700px;">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Buy Plan ${CONFIG.plans[_selPlan].name}</h3>
+          <div class="form-row">
+            <label>Amount (USDT) — Min: ${CONFIG.plans[_selPlan].min}</label>
+            <div style="display:flex;align-items:center;gap:10px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+              <span style="color:#26a17b;font-size:1.4rem;">₮</span>
+              <input type="number" id="planAmount" value="${CONFIG.plans[_selPlan].min}" min="${CONFIG.plans[_selPlan].min}" style="background:transparent;border:0;padding:0;font-size:1.1rem;" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Referrer (optional, 0x...)</label>
+            <input type="text" id="planReferrer" placeholder="0x0000...0000" />
+          </div>
+
+          <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">Entry Fee (5%):</span>
+              <span style="color:var(--red);" id="planEntryFee">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">Net Deposit:</span>
+              <span style="color:var(--gold);font-weight:700;" id="planNet">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);">
+              <span style="color:var(--muted);">Monthly Reward:</span>
+              <span style="color:#10b981;font-weight:700;" id="planMonthly">—</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn-gold" id="approvePlanBtn" style="flex:1;" ${!state.deployed ? 'disabled' : ''}>1. Approve USDT</button>
+            <button class="btn-purchase" id="buyPlanBtn" style="flex:1;position:static;" ${!state.deployed ? 'disabled' : ''}>2. Buy Plan</button>
+          </div>
+
+          ${!state.deployed ? `<div class="notice notice-warning" style="margin-top:14px;">Contracts not deployed on testnet.</div>` : ''}
+        </div>
+      `;
+    }
+
     function renderRedeem() {
       return `
         <h1 class="page-title">Withdraw your USDT</h1>
@@ -1158,6 +1229,7 @@ ${t.desc}</div>
       let content = "";
       if (route === "dashboard") content = renderDashboard();
       else if (route === "node") content = renderNode();
+      else if (route === "invest") content = renderInvest();
       else if (route === "redeem") content = renderRedeem();
       else if (route === "network") content = renderNetwork();
       else if (route === "account") content = renderAccount();
@@ -1170,7 +1242,7 @@ ${t.desc}</div>
       if (switchLink) switchLink.addEventListener("click", (e) => { e.preventDefault(); switchToBSC(); });
 
       document.querySelectorAll("[data-buy]").forEach(btn => {
-        btn.addEventListener("click", () => go("redeem"));
+        btn.addEventListener("click", () => go("invest"));
       });
 
       // Dashboard — Claim / View Details
@@ -1232,6 +1304,113 @@ ${t.desc}</div>
           setTimeout(() => copyAddrBtn.textContent = "📋 Copy Address", 2000);
         } catch (e) {
           alert("Copy failed: " + e.message);
+        }
+      });
+
+      // Invest page — plan selector
+      document.querySelectorAll(".inv-plan").forEach(card => {
+        card.addEventListener("click", () => {
+          _selectedPlan = Number(card.dataset.plan);
+          render();
+        });
+      });
+
+      // Invest page — Amount input live calc
+      const planAmount = document.getElementById("planAmount");
+      const planReferrer = document.getElementById("planReferrer");
+      function recalcInvest() {
+        if (!planAmount) return;
+        const amt = Number(planAmount.value || 0);
+        const plan = CONFIG.plans[_selectedPlan];
+        const entry = amt * 0.05;
+        const net = amt - entry;
+        const monthly = (net * plan.monthly) / 100;
+        const ef = document.getElementById("planEntryFee");
+        const pn = document.getElementById("planNet");
+        const pm = document.getElementById("planMonthly");
+        if (ef) ef.textContent = `-${entry.toFixed(2)} USDT`;
+        if (pn) pn.textContent = `${net.toFixed(2)} USDT`;
+        if (pm) pm.textContent = `+${monthly.toFixed(2)} BCF / month`;
+      }
+      if (planAmount) {
+        planAmount.addEventListener("input", recalcInvest);
+        recalcInvest();
+      }
+
+      // Invest page — fetch balances
+      const invUsdt = document.getElementById("invUsdt");
+      const invBcf = document.getElementById("invBcf");
+      if (invUsdt && state.deployed && state.provider) {
+        const usdtC = getContract("MockUSDT");
+        usdtC.balanceOf(state.account).then(bal => {
+          invUsdt.innerHTML = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }).catch(() => { invUsdt.innerHTML = "0"; });
+      }
+      if (invBcf && state.deployed && state.provider) {
+        const bcfC = getContract("BCFToken");
+        bcfC.balanceOf(state.account).then(bal => {
+          invBcf.innerHTML = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }).catch(() => { invBcf.innerHTML = "0"; });
+      }
+
+      // Invest page — Approve USDT
+      const approvePlanBtn = document.getElementById("approvePlanBtn");
+      if (approvePlanBtn) approvePlanBtn.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        const amt = Number(planAmount.value || 0);
+        if (amt < CONFIG.plans[_selectedPlan].min) {
+          alert(`Minimum ${CONFIG.plans[_selectedPlan].min} USDT`); return;
+        }
+        try {
+          const usdt = getContract("MockUSDT", true);
+          approvePlanBtn.textContent = "Approving...";
+          approvePlanBtn.disabled = true;
+          const amountWei = ethers.parseUnits(String(amt), 18);
+          const tx = await usdt.approve(CONFIG.addresses.Investment, amountWei);
+          await tx.wait();
+          approvePlanBtn.textContent = "✓ Approved";
+          setTimeout(() => {
+            approvePlanBtn.textContent = "1. Approve USDT";
+            approvePlanBtn.disabled = false;
+          }, 3000);
+        } catch (e) {
+          alert("Approve failed: " + (e.reason || e.message));
+          approvePlanBtn.textContent = "1. Approve USDT";
+          approvePlanBtn.disabled = false;
+        }
+      });
+
+      // Invest page — Buy Plan
+      const buyPlanBtn = document.getElementById("buyPlanBtn");
+      if (buyPlanBtn) buyPlanBtn.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        const amt = Number(planAmount.value || 0);
+        if (amt < CONFIG.plans[_selectedPlan].min) {
+          alert(`Minimum ${CONFIG.plans[_selectedPlan].min} USDT`); return;
+        }
+        const ref = (planReferrer && planReferrer.value && planReferrer.value.startsWith("0x") && planReferrer.value.length === 42)
+          ? planReferrer.value
+          : ethers.ZeroAddress;
+        try {
+          const inv = getContract("Investment", true);
+          buyPlanBtn.textContent = "Buying...";
+          buyPlanBtn.disabled = true;
+          const amountWei = ethers.parseUnits(String(amt), 18);
+          const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
+          await tx.wait();
+          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nTx: ${tx.hash}`);
+          buyPlanBtn.textContent = "✓ Purchased";
+          setTimeout(() => {
+            buyPlanBtn.textContent = "2. Buy Plan";
+            buyPlanBtn.disabled = false;
+            render(); // refresh balances
+          }, 3000);
+        } catch (e) {
+          alert("Buy failed: " + (e.reason || e.message));
+          buyPlanBtn.textContent = "2. Buy Plan";
+          buyPlanBtn.disabled = false;
         }
       });
 
