@@ -456,11 +456,19 @@
       account: null,
       provider: null,
       signer: null,
+      readProvider: null,  // Fallback public RPC for reads
       chainOk: false,
       deployed: false,
     };
     let _selectedPlan = 0;
     let _nodeAmount = 1000;
+
+    // Initialize fallback read-only provider
+    try {
+      state.readProvider = new ethers.JsonRpcProvider("https://bsc-testnet-rpc.publicnode.com", { chainId: 97, name: "BSC Testnet" });
+    } catch (e) {
+      console.error("Read provider init failed:", e);
+    }
 
     // ============================================================
     // Wallet
@@ -599,8 +607,14 @@
     }
 
     function getContract(name, withSigner = false) {
-      if (!state.provider) return null;
-      return new ethers.Contract(CONFIG.addresses[name], ABIS[name], withSigner ? state.signer : state.provider);
+      if (withSigner) {
+        if (!state.signer) return null;
+        return new ethers.Contract(CONFIG.addresses[name], ABIS[name], state.signer);
+      }
+      // For reads: prefer MetaMask provider, fall back to public RPC
+      const provider = state.provider || state.readProvider;
+      if (!provider) return null;
+      return new ethers.Contract(CONFIG.addresses[name], ABIS[name], provider);
     }
 
     // ============================================================
@@ -722,10 +736,13 @@
           const invContract = getContract("Investment");
           if (state.account) {
             // Direct lookup: getUserPurchases(address) returns array of purchase IDs
-            invContract.getUserPurchases(state.account).catch(() => invContract.userPurchases(state.account)).then(ids => {
+            Promise.race([
+              invContract.getUserPurchases(state.account).catch(() => invContract.userPurchases(state.account)),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout")), 8000))
+            ]).then(ids => {
               const idList = Array.from(ids || []).map(n => Number(n));
               const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
-                id, plan: Number(p[1]), amount: p[2], active: p[7]  // active is now index 7 (was 6)
+                id, plan: Number(p[1]), amount: p[2], active: p[7]
               })).catch(() => null));
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
@@ -738,23 +755,30 @@
                 if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
                 if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
               });
-            }).catch(() => {});
+            }).catch(e => {
+              console.error("Dashboard user purchases error:", e);
+              const el2 = document.getElementById("dashMyPurchase");
+              if (el2) el2.textContent = "err";
+            });
           }
 
           // BCF Pool Value (Operations pool via Dashboard)
           const dashC = getContract("Dashboard");
-          dashC.getPoolBalance().then(bal => {
+          Promise.race([
+            dashC.getPoolBalance(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
+          ]).then(bal => {
             const el = document.getElementById("dashBcfPool");
             if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-          }).catch(() => {});
+          }).catch(e => console.error("BCF pool error:", e));
 
           // Insurance Pool Value (USDT held by Insurance contract)
           const usdtC = getContract("MockUSDT");
           usdtC.balanceOf(CONFIG.addresses.Insurance).then(bal => {
             const el = document.getElementById("dashInsPool");
             if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-          }).catch(() => {});
-        } catch (e) { /* mock fallback */ }
+          }).catch(e => console.error("Insurance pool error:", e));
+        } catch (e) { console.error("Dashboard fetch error:", e); }
       }
 
       return `
@@ -1359,10 +1383,15 @@ ${t.desc}</div>
       // Account — Load user investments from chain
       if (route === "account" && state.account && state.deployed && state.provider) {
         (async () => {
+          const listBody = document.getElementById("invListBody");
+          const totalEl = document.getElementById("acctTotalInvest");
           try {
             const inv = getContract("Investment");
             // Direct lookup: getUserPurchases(address) returns array of purchase IDs
-            const purchaseIds = await inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account));
+            const purchaseIds = await Promise.race([
+              inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account)),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout (8s)")), 8000))
+            ]);
             const ids = Array.from(purchaseIds || []).map(n => Number(n));
             const userPlans = [];
             for (const id of ids) {
@@ -1382,8 +1411,6 @@ ${t.desc}</div>
                 });
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
             }
-            const listBody = document.getElementById("invListBody");
-            const totalEl = document.getElementById("acctTotalInvest");
             if (totalEl) {
               const total = userPlans.reduce((s, p) => s + Number(p.amount), 0);
               totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -1409,7 +1436,15 @@ ${t.desc}</div>
                 `;
               }
             }
-          } catch (e) { console.error("Investment list load error:", e); }
+          } catch (e) {
+            console.error("Investment list load error:", e);
+            if (listBody) {
+              listBody.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px 0;">❌ Error: ${e.message}<br><small>Try refreshing the page (F5)</small></p>`;
+            }
+            if (totalEl) {
+              totalEl.textContent = "?";
+            }
+          }
         })();
       }
 
