@@ -409,9 +409,11 @@
       ],
       MockUSDT: [
         "function balanceOf(address) view returns (uint256)",
+        "function allowance(address,address) view returns (uint256)",
         "function approve(address,uint256) returns (bool)",
         "function mint(address,uint256)",
         "function owner() view returns (address)",
+        "function totalSupply() view returns (uint256)",
       ],
       Investment: [
         "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
@@ -722,6 +724,20 @@
               });
             }).catch(() => {});
           }
+
+          // BCF Pool Value (Operations pool via Dashboard)
+          const dashC = getContract("Dashboard");
+          dashC.getPoolBalance().then(bal => {
+            const el = document.getElementById("dashBcfPool");
+            if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          }).catch(() => {});
+
+          // Insurance Pool Value (USDT held by Insurance contract)
+          const usdtC = getContract("MockUSDT");
+          usdtC.balanceOf(CONFIG.addresses.Insurance).then(bal => {
+            const el = document.getElementById("dashInsPool");
+            if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+          }).catch(() => {});
         } catch (e) { /* mock fallback */ }
       }
 
@@ -744,15 +760,15 @@
         <div class="stat-row" style="grid-template-columns:repeat(3,1fr);">
           <div class="stat-card">
             <div class="stat-label">BCF Price</div>
-            <div class="stat-value">${fmt(bcfPrice, 2)}<span class="unit">USDT</span></div>
+            <div class="stat-value"><span id="dashBcfPrice">$1.00</span><span class="unit">USDT</span></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">BCF Pool Value</div>
-            <div class="stat-value">${fmt(poolVal)}<span class="unit">USDT</span></div>
+            <div class="stat-value"><span id="dashBcfPool">0</span><span class="unit">USDT</span></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Insurance Pool Value</div>
-            <div class="stat-value">${fmt(insPoolVal)}<span class="unit">USDT</span></div>
+            <div class="stat-value"><span id="dashInsPool">0</span><span class="unit">USDT</span></div>
           </div>
         </div>
 
@@ -1026,11 +1042,8 @@ ${t.desc}</div>
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;">
-            <button class="btn-gold" id="approvePlanBtn" style="flex:1;" ${!state.deployed ? 'disabled' : ''}>Approve USDT (optional)</button>
-            <button class="btn-purchase" id="buyPlanBtn" style="flex:1;position:static;" ${!state.deployed ? 'disabled' : ''}>Buy Plan</button>
-          </div>
-          <p style="color:var(--muted);font-size:0.75rem;margin-top:8px;">Buy Plan auto-approves USDT if needed. Manual approve button is for advanced users.</p>
+          <button class="btn-purchase" id="buyPlanBtn" style="position:static;width:100%;padding:16px;font-size:1.05rem;" ${!state.deployed ? 'disabled' : ''}>💰 Buy Plan</button>
+          <p style="color:var(--muted);font-size:0.75rem;margin-top:10px;text-align:center;">USDT will be auto-approved if needed. Maximum 2 wallet confirmations.</p>
 
           ${!state.deployed ? `<div class="notice notice-warning" style="margin-top:14px;">Contracts not deployed on testnet.</div>` : ''}
         </div>
@@ -1453,35 +1466,6 @@ ${t.desc}</div>
         }).catch(() => { invActive.innerHTML = "0"; });
       }
 
-      // Invest page — Approve USDT (manual)
-      const approvePlanBtn = document.getElementById("approvePlanBtn");
-      if (approvePlanBtn) approvePlanBtn.addEventListener("click", async () => {
-        if (!state.account) { await connectWallet(); return; }
-        if (!state.chainOk) { await switchToBSC(); return; }
-        const amt = Number(planAmount.value || 0);
-        if (amt < CONFIG.plans[_selectedPlan].min) {
-          alert(`Minimum ${CONFIG.plans[_selectedPlan].min} USDT`); return;
-        }
-        try {
-          const usdt = getContract("MockUSDT", true);
-          approvePlanBtn.textContent = "Approving...";
-          approvePlanBtn.disabled = true;
-          const amountWei = ethers.parseUnits(String(amt), 18);
-          const tx = await usdt.approve(CONFIG.addresses.Investment, amountWei);
-          await tx.wait();
-          alert(`✅ USDT approved!\n\nTx: ${tx.hash}`);
-          approvePlanBtn.textContent = "✓ Approved";
-          setTimeout(() => {
-            approvePlanBtn.textContent = "1. Approve USDT";
-            approvePlanBtn.disabled = false;
-          }, 3000);
-        } catch (e) {
-          alert("Approve failed: " + (e.reason || e.message));
-          approvePlanBtn.textContent = "1. Approve USDT";
-          approvePlanBtn.disabled = false;
-        }
-      });
-
       // Invest page — Buy Plan (auto-approves if needed)
       const buyPlanBtn = document.getElementById("buyPlanBtn");
       if (buyPlanBtn) buyPlanBtn.addEventListener("click", async () => {
@@ -1495,7 +1479,6 @@ ${t.desc}</div>
           ? planReferrer.value
           : ethers.ZeroAddress;
 
-        // Step 1: Check + Auto-approve if needed
         try {
           buyPlanBtn.textContent = "⏳ Checking approval...";
           buyPlanBtn.disabled = true;
@@ -1503,36 +1486,25 @@ ${t.desc}</div>
           const amountWei = ethers.parseUnits(String(amt), 18);
           const curAllowance = await usdt.allowance(state.account, CONFIG.addresses.Investment);
           if (curAllowance < amountWei) {
-            buyPlanBtn.textContent = "⏳ Approving USDT...";
+            buyPlanBtn.textContent = "⏳ Step 1/2: Approving USDT...";
             const usdtW = getContract("MockUSDT", true);
             const txA = await usdtW.approve(CONFIG.addresses.Investment, amountWei);
             await txA.wait();
-            console.log("Auto-approved USDT");
           }
-        } catch (e) {
-          alert("Auto-approve failed: " + (e.reason || e.message));
-          buyPlanBtn.textContent = "2. Buy Plan";
-          buyPlanBtn.disabled = false;
-          return;
-        }
-
-        // Step 2: Buy Plan
-        try {
-          buyPlanBtn.textContent = "⏳ Buying Plan...";
+          buyPlanBtn.textContent = "⏳ Step 2/2: Buying Plan...";
           const inv = getContract("Investment", true);
-          const amountWei = ethers.parseUnits(String(amt), 18);
           const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
           await tx.wait();
-          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nTx: ${tx.hash}\n\nView on BSCScan: https://testnet.bscscan.com/tx/${tx.hash}`);
-          buyPlanBtn.textContent = "✓ Purchased";
+          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
+          buyPlanBtn.textContent = "✓ Purchased!";
           setTimeout(() => {
-            buyPlanBtn.textContent = "2. Buy Plan";
+            buyPlanBtn.textContent = "💰 Buy Plan";
             buyPlanBtn.disabled = false;
             render(); // refresh balances
-          }, 3000);
+          }, 4000);
         } catch (e) {
-          alert("Buy failed: " + (e.reason || e.message) + "\n\n(Tip: maybe USDT not approved yet — try pressing 1. Approve USDT first)");
-          buyPlanBtn.textContent = "2. Buy Plan";
+          alert("Buy failed: " + (e.reason || e.message));
+          buyPlanBtn.textContent = "💰 Buy Plan";
           buyPlanBtn.disabled = false;
         }
       });
