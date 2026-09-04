@@ -425,9 +425,13 @@
         "function claimMonthlyReturn(uint256) returns (uint256)",
       ],
       Insurance: [
-        "function activate()",
-        "function claim()",
-        "function getUserInsurance(address) view returns (bool,uint256,uint256)",
+        "function getUserClaims(address) view returns (tuple(uint256 purchaseId,address user,uint256 originalAmount,uint256 recoveryAmount,uint256 bcfBurned,uint256 claimTime,uint8 monthClaimed,bool processed)[])",
+        "function getInsurancePoolBalance() view returns (uint256)",
+        "function getTotalClaimed() view returns (uint256)",
+        "function getTotalBCFBurned() view returns (uint256)",
+        "function calculateRecoveryAmount(uint8 planId, uint256 originalAmount, uint256 purchaseTime) view returns (uint256 recoveryAmount, uint8 recoveryPercentage, uint8 currentMonth)",
+        "function canClaimInsurance(address user, uint256 purchaseId) view returns (bool)",
+        "function claimInsurance(uint256 purchaseId, uint8 planId, uint256 originalAmount, uint256 purchaseTime, uint256 bcfBalance)",
       ],
       Operations: [
         "function getPoolBalance() view returns (uint256)",
@@ -711,6 +715,91 @@
       `;
       m.classList.add("open");
       document.getElementById("insuranceCloseBtn").onclick = () => m.classList.remove("open");
+    }
+
+    // Fetch the user's purchases eligible for insurance and let them pick one to claim
+    async function openInsuranceClaimModal() {
+      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+      if (!state.account) { await connectWallet(); return; }
+
+      showModal("Capital Protection", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Loading your eligible plans... <span class="loader"></span></p>`, "Close");
+
+      try {
+        const inv = getContract("Investment");
+        const ins = getContract("Insurance");
+        const bcfC = getContract("BCFToken");
+
+        const ids = Array.from(
+          await inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account))
+        ).map(n => Number(n));
+
+        const purchases = (await Promise.all(ids.map(id => inv.getPurchaseInfo(id).then(p => ({
+          id, planId: Number(p[1]), amount: p[2], startTime: p[3], active: p[7]
+        })).catch(() => null)))).filter(p => p && p.active);
+
+        const eligible = [];
+        for (const p of purchases) {
+          const can = await ins.canClaimInsurance(state.account, p.id).catch(() => false);
+          if (can) eligible.push(p);
+        }
+
+        const inner = document.getElementById("modalInner");
+        if (!inner) return; // modal was closed
+
+        if (eligible.length === 0) {
+          inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--muted);text-align:center;padding:20px 0;">No active plans are currently eligible for an insurance claim.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
+          document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
+          return;
+        }
+
+        const rows = await Promise.all(eligible.map(async p => {
+          const [recoveryAmount, recoveryPct] = await ins.calculateRecoveryAmount(p.planId, p.amount, p.startTime).catch(() => [0n, 0]);
+          return { ...p, recoveryAmount, recoveryPct: Number(recoveryPct) };
+        }));
+
+        inner.innerHTML = `
+          <h3>Capital Protection</h3>
+          <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;">Select a plan to claim insurance on. This will close the plan and refund the recovery amount in USDT (a portion of BCF will be burned).</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            ${rows.map(r => `
+              <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-weight:700;">#${r.id} — Plan ${["A","B","C"][r.planId] || r.planId}</div>
+                  <div style="color:var(--muted);font-size:0.8rem;">Recovery: ${r.recoveryPct}% (${Number(ethers.formatUnits(r.recoveryAmount, 18)).toFixed(2)} USDT)</div>
+                </div>
+                <button class="btn-purchase claim-ins-row" data-id="${r.id}" data-plan="${r.planId}" data-amount="${r.amount}" data-start="${r.startTime}" style="position:static;">Claim</button>
+              </div>
+            `).join('')}
+          </div>
+          <div class="modal-foot"><button class="btn-gold full" id="modalClose" style="background:var(--bg-card-2);border:1px solid var(--border);">Close</button></div>
+        `;
+        document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
+        inner.querySelectorAll(".claim-ins-row").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            btn.textContent = "⏳ Claiming...";
+            btn.disabled = true;
+            try {
+              const bcfBal = await bcfC.balanceOf(state.account);
+              const insW = getContract("Insurance", true);
+              const tx = await insW.claimInsurance(btn.dataset.id, btn.dataset.plan, btn.dataset.amount, btn.dataset.start, bcfBal);
+              await tx.wait();
+              alert("✅ Insurance claimed! Tx: " + tx.hash);
+              document.getElementById("modal").classList.remove("open");
+              render();
+            } catch (e) {
+              alert("Claim failed: " + (e.reason || e.message));
+              btn.textContent = "Claim";
+              btn.disabled = false;
+            }
+          });
+        });
+      } catch (e) {
+        console.error("Insurance claim modal error:", e);
+        const inner = document.getElementById("modalInner");
+        if (inner) inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error loading plans: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
+        const closeBtn = document.getElementById("modalClose");
+        if (closeBtn) closeBtn.onclick = () => document.getElementById("modal").classList.remove("open");
+      }
     }
 
     // ============================================================
@@ -1328,27 +1417,7 @@ ${t.desc}</div>
 
       // Dashboard — Claim / View Details
       const claimInsDash = document.getElementById("claimIns");
-      if (claimInsDash) claimInsDash.addEventListener("click", () => {
-        showModal(
-          "Capital Protection",
-          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
-          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
-            ✓ Enjoy coverage up to 70% in early months<br>
-            ✓ Claim protection anytime during plan period<br>
-            ✓ Simple one-click activation
-          </p>`,
-          "ACTIVATE INSURANCE NOW",
-          async () => {
-            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-            if (!state.account) { await connectWallet(); return; }
-            try {
-              const ins = getContract("Insurance", true);
-              const tx = await ins.activate();
-              alert("Insurance activation submitted! Tx: " + tx.hash);
-            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
-          }
-        );
-      });
+      if (claimInsDash) claimInsDash.addEventListener("click", () => openInsuranceClaimModal());
       const viewInsDash = document.getElementById("viewIns");
       if (viewInsDash) viewInsDash.addEventListener("click", () => {
         showInsuranceDetails();
@@ -1570,27 +1639,7 @@ ${t.desc}</div>
 
       // Insurance page Claim / View Details
       const claimInsPage = document.querySelector(".stat-card #claimIns");
-      if (claimInsPage) claimInsPage.addEventListener("click", () => {
-        showModal(
-          "Capital Protection",
-          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
-          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
-            ✓ Enjoy coverage up to 70% in early months<br>
-            ✓ Claim protection anytime during plan period<br>
-            ✓ Simple one-click activation
-          </p>`,
-          "ACTIVATE INSURANCE NOW",
-          async () => {
-            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-            if (!state.account) { await connectWallet(); return; }
-            try {
-              const ins = getContract("Insurance", true);
-              const tx = await ins.activate();
-              alert("Insurance activation submitted! Tx: " + tx.hash);
-            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
-          }
-        );
-      });
+      if (claimInsPage) claimInsPage.addEventListener("click", () => openInsuranceClaimModal());
       const viewInsPage = document.querySelector(".stat-card #viewIns");
       if (viewInsPage) viewInsPage.addEventListener("click", () => showInsuranceDetails());
 
