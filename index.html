@@ -416,17 +416,33 @@
         "function totalSupply() view returns (uint256)",
       ],
       Investment: [
-        "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
+        "function getPlanInfo(uint8) view returns (uint16,uint8,uint256,bool)",
         "function buyPlan(uint8,uint256,address)",
         "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint256,uint256,uint256,bool)",
         "function purchaseCounter() view returns (uint256)",
         "function userPurchases(address) view returns (uint256[])",
         "function getUserPurchases(address) view returns (uint256[])",
+        "function claimMonthlyReturn(uint256) returns (uint256)",
       ],
       Insurance: [
         "function activate()",
         "function claim()",
         "function getUserInsurance(address) view returns (bool,uint256,uint256)",
+      ],
+      Operations: [
+        "function getPoolBalance() view returns (uint256)",
+        "function totalDistributed() view returns (uint256)",
+      ],
+      Dashboard: [
+        "function getPoolBalance() view returns (uint256)",
+        "function getTotalInvested(address) view returns (uint256)",
+        "function getTotalReturns(address) view returns (uint256)",
+      ],
+      Node: [
+        "function getUserNode(address) view returns (uint256,uint256,uint8,bool,uint256)",
+      ],
+      Referral: [
+        "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
       ],
     };
 
@@ -763,11 +779,11 @@
             <div class="stat-value"><span id="dashBcfPrice">$1.00</span><span class="unit">USDT</span></div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">BCF Pool Value</div>
-            <div class="stat-value"><span id="dashBcfPool">0</span><span class="unit">USDT</span></div>
+            <div class="stat-label">BCF Pool (Operations)</div>
+            <div class="stat-value"><span id="dashBcfPool">0</span><span class="unit">BCF</span></div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Insurance Pool Value</div>
+            <div class="stat-label">Insurance Pool</div>
             <div class="stat-value"><span id="dashInsPool">0</span><span class="unit">USDT</span></div>
           </div>
         </div>
@@ -1494,8 +1510,8 @@ ${t.desc}</div>
           buyPlanBtn.textContent = "⏳ Step 2/2: Buying Plan...";
           const inv = getContract("Investment", true);
           const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
-          await tx.wait();
-          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
+          const receipt = await tx.wait();
+          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nAmount: ${amt} USDT (5 USDT entry fee refunded to you)\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
           buyPlanBtn.textContent = "✓ Purchased!";
           setTimeout(() => {
             buyPlanBtn.textContent = "💰 Buy Plan";
