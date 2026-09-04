@@ -1420,7 +1420,7 @@ ${t.desc}</div>
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
             }
             if (totalEl) {
-              const total = userPlans.reduce((s, p) => s + Number(p.amount), 0);
+              const total = userPlans.reduce((s, p) => s + BigInt(p.amount), 0n);
               totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
             }
             if (listBody) {
