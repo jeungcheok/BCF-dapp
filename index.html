@@ -747,13 +747,21 @@
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
                 totalActivePlans = active.length;
-                const userTotal = active.reduce((s, p) => s + Number(p.amount), 0);
+                // Keep everything in BigInt to avoid precision/overflow errors
+                const userTotal = active.reduce((s, p) => s + BigInt(p.amount), 0n);
+                const userReturn = (userTotal * 15n) / 100n; // 15%
                 const el1 = document.getElementById("dashActivePlans");
                 const el2 = document.getElementById("dashMyPurchase");
                 const el3 = document.getElementById("dashMyReturn");
                 if (el1) el1.textContent = totalActivePlans;
                 if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                if (el3) el3.textContent = Number(ethers.formatUnits(userReturn, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              }).catch(e => {
+                console.error("Dashboard totals compute error:", e);
+                const el2 = document.getElementById("dashMyPurchase");
+                const el3 = document.getElementById("dashMyReturn");
+                if (el2) el2.textContent = "err";
+                if (el3) el3.textContent = "err";
               });
             }).catch(e => {
               console.error("Dashboard user purchases error:", e);
