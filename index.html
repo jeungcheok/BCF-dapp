@@ -416,7 +416,9 @@
       Investment: [
         "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
         "function buyPlan(uint8,uint256,address)",
+        "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint8,address,bool)",
         "function purchaseCounter() view returns (uint256)",
+        "function userPurchases(address) view returns (uint256[])",
       ],
       Insurance: [
         "function activate()",
@@ -694,15 +696,31 @@
       let totalPurchase = 0, totalReturn = 0, networkPerf = 0;
       let bcfPrice = 0, poolVal = 0, insPoolVal = 0;
       let inv = 0, currentMonth = "0/0 Months", protection = "Inactive";
+      let totalActivePlans = 0;
 
       if (state.deployed) {
         try {
           const invContract = getContract("Investment");
-          invContract.purchaseCounter().then(counter => {
-            totalPurchase = Number(counter) * 950;
-            totalReturn = totalPurchase * 0.15;
-            networkPerf = totalReturn * 0.5;
-          });
+          if (state.account) {
+            // Direct lookup: userPurchases(address) returns array of purchase IDs
+            invContract.userPurchases(state.account).then(ids => {
+              const idList = Array.from(ids || []).map(n => Number(n));
+              const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
+                id, plan: Number(p[1]), amount: p[2], active: p[6]
+              })).catch(() => null));
+              Promise.all(checks).then(plans => {
+                const active = plans.filter(p => p && p.active);
+                totalActivePlans = active.length;
+                const userTotal = active.reduce((s, p) => s + Number(p.amount), 0);
+                const el1 = document.getElementById("dashActivePlans");
+                const el2 = document.getElementById("dashMyPurchase");
+                const el3 = document.getElementById("dashMyReturn");
+                if (el1) el1.textContent = totalActivePlans;
+                if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              });
+            }).catch(() => {});
+          }
         } catch (e) { /* mock fallback */ }
       }
 
@@ -710,15 +728,15 @@
         <div class="stat-row">
           <div class="stat-card">
             <div class="stat-label">My Total Purchase BCF</div>
-            <div class="stat-value">${fmt(totalPurchase)}<span class="unit">USDT</span></div>
+            <div class="stat-value"><span id="dashMyPurchase">0</span><span class="unit">USDT</span></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">My Total Auto Selling BCF Return</div>
-            <div class="stat-value">${fmt(totalReturn)}<span class="unit">USDT</span></div>
+            <div class="stat-value"><span id="dashMyReturn">0</span><span class="unit">USDT</span></div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">My Network Performance</div>
-            <div class="stat-value">${fmt(networkPerf)}<span class="unit">USDT</span></div>
+            <div class="stat-label">My Active Plans</div>
+            <div class="stat-value" style="color:#10b981;"><span id="dashActivePlans">0</span></div>
           </div>
         </div>
 
@@ -1161,7 +1179,7 @@ ${t.desc}</div>
           <h3 style="font-size:0.95rem;margin-bottom:14px;">Account Details</h3>
           <div style="background:var(--bg-elev);padding:16px;border-radius:8px;margin-bottom:20px;">
             <div class="stat-label">My Total Investment</div>
-            <div style="font-size:1.6rem;font-weight:700;">0<span class="unit">USDT</span></div>
+            <div style="font-size:1.6rem;font-weight:700;"><span id="acctTotalInvest">0</span><span class="unit">USDT</span></div>
           </div>
           <h4 style="font-size:0.95rem;margin-bottom:12px;">Join BCF Community</h4>
           <div class="social-icons">
@@ -1176,7 +1194,7 @@ ${t.desc}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
             <div>
               <h3 style="color:var(--gold);text-align:center;font-size:1rem;padding-bottom:8px;border-bottom:2px solid var(--gold);margin-bottom:14px;">Investment List</h3>
-              <p style="color:var(--muted);text-align:center;padding:20px 0;">No investments yet</p>
+              <div id="invListBody"><p style="color:var(--muted);text-align:center;padding:20px 0;">Loading...</p></div>
             </div>
             <div>
               <h3 style="color:var(--gold);text-align:center;font-size:1rem;padding-bottom:8px;border-bottom:2px solid var(--muted-2);margin-bottom:14px;color:var(--muted);">Redemption List</h3>
@@ -1306,6 +1324,60 @@ ${t.desc}</div>
           alert("Copy failed: " + e.message);
         }
       });
+
+      // Account — Load user investments from chain
+      if (route === "account" && state.account && state.deployed && state.provider) {
+        (async () => {
+          try {
+            const inv = getContract("Investment");
+            // Direct lookup: userPurchases(address) returns array of purchase IDs
+            const purchaseIds = await inv.userPurchases(state.account);
+            const ids = Array.from(purchaseIds || []).map(n => Number(n));
+            const userPlans = [];
+            for (const id of ids) {
+              try {
+                const p = await inv.getPurchaseInfo(id);
+                userPlans.push({
+                  id,
+                  planId: Number(p[1]),
+                  amount: p[2],
+                  start: Number(p[3]),
+                  claimed: Number(p[4]),
+                  active: p[6],
+                  planName: ["A","B","C"][Number(p[1])] || "?"
+                });
+              } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
+            }
+            const listBody = document.getElementById("invListBody");
+            const totalEl = document.getElementById("acctTotalInvest");
+            if (totalEl) {
+              const total = userPlans.reduce((s, p) => s + Number(p.amount), 0);
+              totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+            }
+            if (listBody) {
+              if (userPlans.length === 0) {
+                listBody.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">No investments yet</p>';
+              } else {
+                listBody.innerHTML = `
+                  <table class="table" style="font-size:0.85rem;">
+                    <thead><tr><th>ID</th><th>Plan</th><th>Amount</th><th>Months</th></tr></thead>
+                    <tbody>
+                      ${userPlans.map(p => `
+                        <tr>
+                          <td>#${p.id}</td>
+                          <td>Plan ${p.planName}</td>
+                          <td>${Number(ethers.formatUnits(p.amount, 18)).toFixed(0)} USDT</td>
+                          <td>${p.claimed}/${[20,10,5][p.planId] || "?"}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                `;
+              }
+            }
+          } catch (e) { console.error("Investment list load error:", e); }
+        })();
+      }
 
       // Invest page — plan selector
       document.querySelectorAll(".inv-plan").forEach(card => {
