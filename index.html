@@ -416,9 +416,10 @@
       Investment: [
         "function getPlanInfo(uint8) view returns (uint256,uint256,uint256,bool)",
         "function buyPlan(uint8,uint256,address)",
-        "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint8,address,bool)",
+        "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint256,uint256,uint256,bool)",
         "function purchaseCounter() view returns (uint256)",
         "function userPurchases(address) view returns (uint256[])",
+        "function getUserPurchases(address) view returns (uint256[])",
       ],
       Insurance: [
         "function activate()",
@@ -702,11 +703,11 @@
         try {
           const invContract = getContract("Investment");
           if (state.account) {
-            // Direct lookup: userPurchases(address) returns array of purchase IDs
-            invContract.userPurchases(state.account).then(ids => {
+            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
+            invContract.getUserPurchases(state.account).catch(() => invContract.userPurchases(state.account)).then(ids => {
               const idList = Array.from(ids || []).map(n => Number(n));
               const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
-                id, plan: Number(p[1]), amount: p[2], active: p[6]
+                id, plan: Number(p[1]), amount: p[2], active: p[7]  // active is now index 7 (was 6)
               })).catch(() => null));
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
@@ -1330,20 +1331,23 @@ ${t.desc}</div>
         (async () => {
           try {
             const inv = getContract("Investment");
-            // Direct lookup: userPurchases(address) returns array of purchase IDs
-            const purchaseIds = await inv.userPurchases(state.account);
+            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
+            const purchaseIds = await inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account));
             const ids = Array.from(purchaseIds || []).map(n => Number(n));
             const userPlans = [];
             for (const id of ids) {
               try {
                 const p = await inv.getPurchaseInfo(id);
+                // Struct: (buyer, planId, amountU, startTime, lastClaimTime, totalClaimed, monthsCompleted, active)
                 userPlans.push({
                   id,
                   planId: Number(p[1]),
                   amount: p[2],
                   start: Number(p[3]),
-                  claimed: Number(p[4]),
-                  active: p[6],
+                  lastClaim: Number(p[4]),
+                  totalClaimed: p[5],
+                  monthsCompleted: Number(p[6]),
+                  active: p[7],
                   planName: ["A","B","C"][Number(p[1])] || "?"
                 });
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
@@ -1360,14 +1364,14 @@ ${t.desc}</div>
               } else {
                 listBody.innerHTML = `
                   <table class="table" style="font-size:0.85rem;">
-                    <thead><tr><th>ID</th><th>Plan</th><th>Amount</th><th>Months</th></tr></thead>
+                    <thead><tr><th>ID</th><th>Plan</th><th>Amount</th><th>Progress</th></tr></thead>
                     <tbody>
                       ${userPlans.map(p => `
                         <tr>
                           <td>#${p.id}</td>
                           <td>Plan ${p.planName}</td>
                           <td>${Number(ethers.formatUnits(p.amount, 18)).toFixed(0)} USDT</td>
-                          <td>${p.claimed}/${[20,10,5][p.planId] || "?"}</td>
+                          <td>${p.monthsCompleted}/${[5,10,20][p.planId] || "?"}</td>
                         </tr>
                       `).join('')}
                     </tbody>
