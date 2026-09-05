@@ -425,13 +425,9 @@
         "function claimMonthlyReturn(uint256) returns (uint256)",
       ],
       Insurance: [
-        "function getUserClaims(address) view returns (tuple(uint256 purchaseId,address user,uint256 originalAmount,uint256 recoveryAmount,uint256 bcfBurned,uint256 claimTime,uint8 monthClaimed,bool processed)[])",
-        "function getInsurancePoolBalance() view returns (uint256)",
-        "function getTotalClaimed() view returns (uint256)",
-        "function getTotalBCFBurned() view returns (uint256)",
-        "function calculateRecoveryAmount(uint8 planId, uint256 originalAmount, uint256 purchaseTime) view returns (uint256 recoveryAmount, uint8 recoveryPercentage, uint8 currentMonth)",
-        "function canClaimInsurance(address user, uint256 purchaseId) view returns (bool)",
-        "function claimInsurance(uint256 purchaseId, uint8 planId, uint256 originalAmount, uint256 purchaseTime, uint256 bcfBalance)",
+        "function activate()",
+        "function claim()",
+        "function getUserInsurance(address) view returns (bool,uint256,uint256)",
       ],
       Operations: [
         "function getPoolBalance() view returns (uint256)",
@@ -443,12 +439,11 @@
         "function getTotalReturns(address) view returns (uint256)",
       ],
       Node: [
-        "function getNodeInfo(address) view returns (tuple(uint8 tier,uint256 usdtValue,uint256 shares,uint256 totalBCFBonus,uint256 weeklyRewards,uint256 totalRewardsEarned,uint256 lastRewardTime,uint256 purchaseTime,bool hasMarketingFund,uint256 marketingFundAmount,uint256 mealAllowance))",
-        "function getNodeValue(address) view returns (uint256)",
-        "function getNodeDividends(address) view returns (uint256)",
-        "function estimateWeeklyReward(address) view returns (uint256)",
-        "function getTierConfig(uint8) view returns (tuple(uint256 cost,bool requiresMarketing,uint256 marketingFundAmount,uint256 mealAllowance))",
-        "function purchaseNode(uint8)",
+        "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
+        "function buyNode(uint256) returns (uint256)",
+        "function claimNodeReward() returns (uint256)",
+        "function getTotalShares() view returns (uint256)",
+        "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
       Referral: [
         "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
@@ -722,159 +717,6 @@
       document.getElementById("insuranceCloseBtn").onclick = () => m.classList.remove("open");
     }
 
-    // Fetch the user's purchases eligible for insurance and let them pick one to claim
-    async function openInsuranceClaimModal() {
-      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-      if (!state.account) { await connectWallet(); return; }
-
-      showModal("Capital Protection", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Loading your eligible plans... <span class="loader"></span></p>`, "Close");
-
-      try {
-        const inv = getContract("Investment");
-        const ins = getContract("Insurance");
-        const bcfC = getContract("BCFToken");
-
-        const ids = Array.from(
-          await inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account))
-        ).map(n => Number(n));
-
-        const purchases = (await Promise.all(ids.map(id => inv.getPurchaseInfo(id).then(p => ({
-          id, planId: Number(p[1]), amount: p[2], startTime: p[3], active: p[7]
-        })).catch(() => null)))).filter(p => p && p.active);
-
-        const eligible = [];
-        for (const p of purchases) {
-          const can = await ins.canClaimInsurance(state.account, p.id).catch(() => false);
-          if (can) eligible.push(p);
-        }
-
-        const inner = document.getElementById("modalInner");
-        if (!inner) return; // modal was closed
-
-        if (eligible.length === 0) {
-          inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--muted);text-align:center;padding:20px 0;">No active plans are currently eligible for an insurance claim.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-          document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-          return;
-        }
-
-        const rows = await Promise.all(eligible.map(async p => {
-          const [recoveryAmount, recoveryPct] = await ins.calculateRecoveryAmount(p.planId, p.amount, p.startTime).catch(() => [0n, 0]);
-          return { ...p, recoveryAmount, recoveryPct: Number(recoveryPct) };
-        }));
-
-        inner.innerHTML = `
-          <h3>Capital Protection</h3>
-          <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;">Select a plan to claim insurance on. This will close the plan and refund the recovery amount in USDT (a portion of BCF will be burned).</p>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            ${rows.map(r => `
-              <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <div style="font-weight:700;">#${r.id} — Plan ${["A","B","C"][r.planId] || r.planId}</div>
-                  <div style="color:var(--muted);font-size:0.8rem;">Recovery: ${r.recoveryPct}% (${Number(ethers.formatUnits(r.recoveryAmount, 18)).toFixed(2)} USDT)</div>
-                </div>
-                <button class="btn-purchase claim-ins-row" data-id="${r.id}" data-plan="${r.planId}" data-amount="${r.amount}" data-start="${r.startTime}" style="position:static;">Claim</button>
-              </div>
-            `).join('')}
-          </div>
-          <div class="modal-foot"><button class="btn-gold full" id="modalClose" style="background:var(--bg-card-2);border:1px solid var(--border);">Close</button></div>
-        `;
-        document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-        inner.querySelectorAll(".claim-ins-row").forEach(btn => {
-          btn.addEventListener("click", async () => {
-            btn.textContent = "⏳ Claiming...";
-            btn.disabled = true;
-            try {
-              const bcfBal = await bcfC.balanceOf(state.account);
-              const insW = getContract("Insurance", true);
-              const tx = await insW.claimInsurance(btn.dataset.id, btn.dataset.plan, btn.dataset.amount, btn.dataset.start, bcfBal);
-              await tx.wait();
-              alert("✅ Insurance claimed! Tx: " + tx.hash);
-              document.getElementById("modal").classList.remove("open");
-              render();
-            } catch (e) {
-              alert("Claim failed: " + (e.reason || e.message));
-              btn.textContent = "Claim";
-              btn.disabled = false;
-            }
-          });
-        });
-      } catch (e) {
-        console.error("Insurance claim modal error:", e);
-        const inner = document.getElementById("modalInner");
-        if (inner) inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error loading plans: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-        const closeBtn = document.getElementById("modalClose");
-        if (closeBtn) closeBtn.onclick = () => document.getElementById("modal").classList.remove("open");
-      }
-    }
-
-    // Fixed tier costs the Node contract supports (in whole USDT).
-    // We don't guess the on-chain tier index — we scan getTierConfig() and match by cost.
-    const NODE_TIER_COSTS = { "V2": 500, "V3": 1000, "V3 Premium": 5000, "V4": 10000 };
-
-    async function findNodeTierIndex(costUsdt) {
-      const nodeC = getContract("Node");
-      const targetWei = ethers.parseUnits(String(costUsdt), 18);
-      for (let i = 0; i < 10; i++) {
-        try {
-          const cfg = await nodeC.getTierConfig(i);
-          if (BigInt(cfg.cost) === targetWei) return { index: i, cost: cfg.cost };
-        } catch (e) { /* tier index out of range or reverts — keep scanning */ }
-      }
-      return null;
-    }
-
-    async function purchaseNodeTier(tierName) {
-      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-      if (!state.account) { await connectWallet(); return; }
-      const costUsdt = NODE_TIER_COSTS[tierName];
-      if (!costUsdt) { alert("Unknown tier: " + tierName); return; }
-
-      showModal(tierName + " Node", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Looking up this tier on-chain... <span class="loader"></span></p>`, "Close");
-      try {
-        const found = await findNodeTierIndex(costUsdt);
-        const inner = document.getElementById("modalInner");
-        if (!found) {
-          if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">This tier's cost (${costUsdt} USDT) doesn't match any tier configured on the deployed Node contract.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-          if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-          return;
-        }
-        if (inner) {
-          inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--muted);margin-bottom:16px;">Purchase for <strong style="color:var(--gold);">${costUsdt} USDT</strong> (on-chain tier #${found.index}).</p><div class="modal-foot"><button class="btn-gold full" id="confirmNodeBuy">Confirm Purchase</button></div>`;
-          document.getElementById("confirmNodeBuy").onclick = async () => {
-            const btn = document.getElementById("confirmNodeBuy");
-            btn.disabled = true;
-            try {
-              btn.textContent = "⏳ Checking approval...";
-              const usdt = getContract("MockUSDT");
-              const allowance = await usdt.allowance(state.account, CONFIG.addresses.Node);
-              if (allowance < found.cost) {
-                btn.textContent = "⏳ Step 1/2: Approving USDT...";
-                const usdtW = getContract("MockUSDT", true);
-                const txA = await usdtW.approve(CONFIG.addresses.Node, found.cost);
-                await txA.wait();
-              }
-              btn.textContent = "⏳ Step 2/2: Purchasing Node...";
-              const nodeW = getContract("Node", true);
-              const tx = await nodeW.purchaseNode(found.index);
-              await tx.wait();
-              alert("✅ " + tierName + " Node purchased! Tx: " + tx.hash);
-              document.getElementById("modal").classList.remove("open");
-              render();
-            } catch (e) {
-              alert("Purchase failed: " + (e.reason || e.message));
-              btn.disabled = false;
-              btn.textContent = "Confirm Purchase";
-            }
-          };
-        }
-      } catch (e) {
-        console.error("Node tier lookup error:", e);
-        const inner = document.getElementById("modalInner");
-        if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-        if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-      }
-    }
-
     // ============================================================
     // Router
     // ============================================================
@@ -909,21 +751,13 @@
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
                 totalActivePlans = active.length;
-                // Keep everything in BigInt to avoid precision/overflow errors
-                const userTotal = active.reduce((s, p) => s + BigInt(p.amount), 0n);
-                const userReturn = (userTotal * 15n) / 100n; // 15%
+                const userTotal = active.reduce((s, p) => s + Number(p.amount), 0);
                 const el1 = document.getElementById("dashActivePlans");
                 const el2 = document.getElementById("dashMyPurchase");
                 const el3 = document.getElementById("dashMyReturn");
                 if (el1) el1.textContent = totalActivePlans;
                 if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                if (el3) el3.textContent = Number(ethers.formatUnits(userReturn, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-              }).catch(e => {
-                console.error("Dashboard totals compute error:", e);
-                const el2 = document.getElementById("dashMyPurchase");
-                const el3 = document.getElementById("dashMyReturn");
-                if (el2) el2.textContent = "err";
-                if (el3) el3.textContent = "err";
+                if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
               });
             }).catch(e => {
               console.error("Dashboard user purchases error:", e);
@@ -1108,10 +942,10 @@
         <div class="stat-card" style="margin-bottom:20px;">
           <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Your Node</h3>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
-            <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;display:flex;align-items:center;gap:6px;">—</div></div>
-            <div><div class="stat-label">Node Dividend</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Node Shares</div><div style="font-weight:700;">0 (100 USDT = 1 Share)</div></div>
+            <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;" id="nodeTier">—</div></div>
+            <div><div class="stat-label">Total Invested</div><div style="font-weight:700;"><span id="nodeInvested">0</span> USDT</div></div>
+            <div><div class="stat-label">Node Shares</div><div style="font-weight:700;"><span id="nodeShares2">0</span></div></div>
+            <div><div class="stat-label">Claimable BCF</div><div style="font-weight:700;color:#10b981;"><span id="nodeClaimable">0</span></div></div>
           </div>
           <div class="tier-progress">
             ${CONFIG.tiers.map((t, i, arr) => `
@@ -1121,27 +955,7 @@
               ${i < arr.length - 1 ? `<div class="tier-line"></div>` : ''}
             `).join('')}
           </div>
-        </div>
-
-        <div class="stat-card" style="margin-bottom:20px;">
-          <h3 style="font-size:0.95rem;margin-bottom:14px;">Weekly Rewards</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
-            <div><div class="stat-label">This Week</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">—</div></div>
-          </div>
-          <button class="btn-gold full" id="viewRewardHistory">View Reward History</button>
-        </div>
-
-        <div class="stat-card" style="margin-bottom:20px;position:relative;padding-right:110px;min-height:120px;">
-          <div style="position:absolute;right:18px;top:18px;">${giftIcon(72)}</div>
-          <h3 style="font-size:0.95rem;margin-bottom:14px;">Monthly Bonus</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
-            <div><div class="stat-label">Current Month</div><div style="font-weight:700;">—</div></div>
-            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0%</div></div>
-            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">0 BCF</div></div>
-          </div>
-          <button class="btn-gold full" id="claimBonus">Claim Bonus</button>
+          <button class="btn-gold full" id="claimNodeReward" style="margin-top:14px;" ${!state.account || !state.deployed ? 'disabled' : ''}>🎁 Claim Node Reward (BCF)</button>
         </div>
 
         <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 12px;">Available Node Tiers</h3>
@@ -1151,21 +965,20 @@
             <h3 style="font-size:0.95rem;margin-bottom:8px;">${t.name} Node — ${fmt(t.minU, 0)} USDT</h3>
             <div style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;line-height:1.6;white-space:pre-line;">${t.shares} Shares
 ${t.desc}</div>
-            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" ${!state.deployed ? 'disabled' : ''}>Purchase for ${fmt(t.minU, 0)} USDT</button>
+            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" data-amount="${t.minU}" ${!state.deployed ? 'disabled' : ''}>Purchase for ${fmt(t.minU, 0)} USDT</button>
           </div>
         `).join('')}
 
         <div class="stat-card" style="margin-top:24px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);">
-          <h3 style="font-size:1rem;margin-bottom:8px;color:var(--gold);">Purchase Node - Become a BCF Partner</h3>
+          <h3 style="font-size:1rem;margin-bottom:8px;color:var(--gold);">Custom Amount - Become a BCF Partner</h3>
           <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;line-height:1.6;">
-            every 100 usdt get 1 share, can get 5% BCF COIN AND GET 4% Dividend forever<br>
-            Every $100 = 1 Share<br>
-            Earn 5% BCF Bonus + 4% Dividend Forever
+            Every 100 USDT = 1 Share<br>
+            Earn BCF rewards (500 BCF/share first month, +10% bonus, 10% monthly decay for 11 months)
           </p>
           <div style="margin-bottom:14px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
               <span style="color:var(--muted);font-size:0.8rem;">Enter Amount in USDT</span>
-              <span style="font-weight:700;display:flex;align-items:center;gap:8px;"><span id="nodeBalanceUsdt" style="background:var(--bg-card-2);padding:2px 6px;border-radius:4px;font-size:0.7rem;">Balance: 0 USDT</span> <span id="nodeAmtLabel" style="color:var(--gold);">${_nodeAmount} USDT</span></span>
+              <span style="font-weight:700;display:flex;align-items:center;gap:8px;"><span id="nodeBalanceUsdt" style="background:var(--bg-card-2);padding:2px 6px;border-radius:4px;font-size:0.7rem;">Balance: — USDT</span> <span id="nodeAmtLabel" style="color:var(--gold);">${_nodeAmount} USDT</span></span>
             </div>
             <input type="range" id="nodeAmount" min="100" max="10000" step="100" value="${_nodeAmount}" />
             <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:0.7rem;margin-top:4px;">
@@ -1174,19 +987,16 @@ ${t.desc}</div>
           </div>
           <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:var(--muted);">USDT (50%):</span>
-              <span style="font-weight:700;" id="nodeUsdtSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span style="color:var(--muted);">Credit (50%):</span>
-              <span style="font-weight:700;" id="nodeCreditSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
-              <span style="color:var(--muted);">Shares:</span>
+              <span style="color:var(--muted);">Shares to receive:</span>
               <span style="color:var(--gold);font-weight:700;" id="nodeShares">${(_nodeAmount / 100).toFixed(0)}</span>
             </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
+              <span style="color:var(--muted);">Monthly reward (est.):</span>
+              <span style="color:#10b981;font-weight:700;" id="nodeMonthly">+${((_nodeAmount/100) * 1000).toLocaleString()} BCF / month</span>
+            </div>
           </div>
-          <button class="btn-gold full" id="purchaseNode" ${!state.deployed ? 'disabled' : ''}>Purchase</button>
+          <button class="btn-purchase" id="purchaseNode" style="position:static;width:100%;padding:16px;font-size:1.05rem;" ${!state.deployed ? 'disabled' : ''}>💎 Buy Node Shares</button>
+          <p style="color:var(--muted);font-size:0.75rem;margin-top:10px;text-align:center;">USDT will be auto-approved if needed. Maximum 2 wallet confirmations.</p>
         </div>
       `;
     }
@@ -1490,7 +1300,27 @@ ${t.desc}</div>
 
       // Dashboard — Claim / View Details
       const claimInsDash = document.getElementById("claimIns");
-      if (claimInsDash) claimInsDash.addEventListener("click", () => openInsuranceClaimModal());
+      if (claimInsDash) claimInsDash.addEventListener("click", () => {
+        showModal(
+          "Capital Protection",
+          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
+            ✓ Enjoy coverage up to 70% in early months<br>
+            ✓ Claim protection anytime during plan period<br>
+            ✓ Simple one-click activation
+          </p>`,
+          "ACTIVATE INSURANCE NOW",
+          async () => {
+            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+            if (!state.account) { await connectWallet(); return; }
+            try {
+              const ins = getContract("Insurance", true);
+              const tx = await ins.activate();
+              alert("Insurance activation submitted! Tx: " + tx.hash);
+            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
+          }
+        );
+      });
       const viewInsDash = document.getElementById("viewIns");
       if (viewInsDash) viewInsDash.addEventListener("click", () => {
         showInsuranceDetails();
@@ -1562,7 +1392,7 @@ ${t.desc}</div>
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
             }
             if (totalEl) {
-              const total = userPlans.reduce((s, p) => s + BigInt(p.amount), 0n);
+              const total = userPlans.reduce((s, p) => s + Number(p.amount), 0);
               totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
             }
             if (listBody) {
@@ -1712,7 +1542,27 @@ ${t.desc}</div>
 
       // Insurance page Claim / View Details
       const claimInsPage = document.querySelector(".stat-card #claimIns");
-      if (claimInsPage) claimInsPage.addEventListener("click", () => openInsuranceClaimModal());
+      if (claimInsPage) claimInsPage.addEventListener("click", () => {
+        showModal(
+          "Capital Protection",
+          `<p style="color:#fff;font-size:0.95rem;margin-bottom:14px;font-weight:500;">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+          <p style="color:rgba(255,255,255,0.85);font-size:0.9rem;line-height:1.7;margin-bottom:18px;">
+            ✓ Enjoy coverage up to 70% in early months<br>
+            ✓ Claim protection anytime during plan period<br>
+            ✓ Simple one-click activation
+          </p>`,
+          "ACTIVATE INSURANCE NOW",
+          async () => {
+            if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+            if (!state.account) { await connectWallet(); return; }
+            try {
+              const ins = getContract("Insurance", true);
+              const tx = await ins.activate();
+              alert("Insurance activation submitted! Tx: " + tx.hash);
+            } catch (e) { alert("Activation failed: " + (e.reason || e.message)); }
+          }
+        );
+      });
       const viewInsPage = document.querySelector(".stat-card #viewIns");
       if (viewInsPage) viewInsPage.addEventListener("click", () => showInsuranceDetails());
 
@@ -1728,9 +1578,9 @@ ${t.desc}</div>
       if (claimBonus) claimBonus.addEventListener("click", () => {
         showModal("Monthly Bonus Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 BCF</strong> as month 1 bonus.</p>");
       });
-      // Node — Tier buy buttons (real on-chain purchase)
+      // Node — Tier buy buttons
       document.querySelectorAll(".node-tier-buy").forEach(btn => {
-        btn.addEventListener("click", () => purchaseNodeTier(btn.dataset.tier));
+        btn.addEventListener("click", () => buyNodeShares(Number(btn.dataset.amount), btn));
       });
 
       // Node — Purchase Node (BCF Partner) section
@@ -1739,13 +1589,78 @@ ${t.desc}</div>
         nodeSlider.addEventListener("input", (e) => {
           _nodeAmount = Number(e.target.value);
           document.getElementById("nodeAmtLabel").textContent = _nodeAmount + " USDT";
-          document.getElementById("nodeUsdtSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
-          document.getElementById("nodeCreditSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
           document.getElementById("nodeShares").textContent = (_nodeAmount / 100).toFixed(0);
+          document.getElementById("nodeMonthly").textContent = `+${((_nodeAmount/100) * 1000).toLocaleString()} BCF / month`;
         });
-        document.getElementById("purchaseNode").addEventListener("click", () => {
-          showModal("Not Supported On-Chain", `<p style="color:var(--muted);">The deployed Node contract only supports fixed-price tiers (500 / 1,000 / 5,000 / 10,000 USDT) via <code>purchaseNode(tier)</code> — it has no function for a custom USDT amount like ${_nodeAmount} USDT.</p><p style="color:var(--muted);margin-top:10px;">Please pick one of the tier cards above instead.</p>`);
-        });
+        const buyBtn = document.getElementById("purchaseNode");
+        if (buyBtn) buyBtn.addEventListener("click", () => buyNodeShares(_nodeAmount, buyBtn));
+      }
+
+      // Node — Claim Reward
+      const claimNodeBtn = document.getElementById("claimNodeReward");
+      if (claimNodeBtn) claimNodeBtn.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        try {
+          claimNodeBtn.disabled = true;
+          claimNodeBtn.textContent = "⏳ Claiming...";
+          const nodeC = getContract("Node", true);
+          const tx = await nodeC.claimNodeReward();
+          const receipt = await tx.wait();
+          alert(`✅ Claimed Node Reward!\n\nTx: ${tx.hash}\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.disabled = false;
+          render();
+        } catch (e) {
+          alert("Claim failed: " + (e.reason || e.message));
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.disabled = false;
+        }
+      });
+
+      // Node — Load user data
+      if (route === "node" && state.account && state.deployed) {
+        (async () => {
+          try {
+            const nodeC = getContract("Node");
+            const info = await Promise.race([
+              nodeC.getNodeInfo(state.account),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
+            ]);
+            // struct: (tier, amountU, shares, joinAt, baseRewardClaimed, bonusClaimed)
+            const tierNames = ["V2", "V3", "V3 Premium", "V4 Premium"];
+            const tierEl = document.getElementById("nodeTier");
+            const invEl = document.getElementById("nodeInvested");
+            const sharesEl = document.getElementById("nodeShares2");
+            if (tierEl) tierEl.textContent = info.shares > 0n ? tierNames[Number(info[0])] : "—";
+            if (invEl) invEl.textContent = Number(ethers.formatUnits(info[1], 18)).toLocaleString();
+            if (sharesEl) sharesEl.textContent = info[2].toString();
+
+            // Calculate claimable
+            if (info.shares > 0n && info.joinAt > 0n) {
+              const monthsPassed = Math.min(11, Math.floor((Date.now()/1000 - Number(info[3])) / (30*24*3600)));
+              if (monthsPassed > 0) {
+                let total = 0;
+                for (let i = 0; i < monthsPassed; i++) {
+                  const bonusBps = i === 0 ? 10000 : Math.max(0, 10000 - (i * 1000));
+                  total += 500 * Number(info[2]) * bonusBps / 10000;
+                }
+                const claimed = Number(ethers.formatUnits(info[4] + info[5], 18));
+                const claimable = Math.max(0, total - claimed);
+                const claimEl = document.getElementById("nodeClaimable");
+                if (claimEl) claimEl.textContent = claimable.toFixed(2);
+              }
+            }
+
+            // USDT balance
+            const usdtC = getContract("MockUSDT");
+            const bal = await usdtC.balanceOf(state.account);
+            const balEl = document.getElementById("nodeBalanceUsdt");
+            if (balEl) balEl.textContent = `Balance: ${Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`;
+          } catch (e) {
+            console.error("Node load error:", e);
+          }
+        })();
       }
 
       // Network — Claim Rewards
@@ -1778,6 +1693,40 @@ ${t.desc}</div>
         copyBtn.textContent = "✓ Copied!";
         setTimeout(() => copyBtn.textContent = "Copy Referral Link", 2000);
       });
+    }
+
+    // Init
+    async function buyNodeShares(amountU, btn) {
+      if (!state.account) { await connectWallet(); return; }
+      if (!state.chainOk) { await switchToBSC(); return; }
+      if (amountU < 100) { alert("Minimum 100 USDT"); return; }
+      const shares = amountU / 100;
+      if (!confirm(`Buy ${shares} node shares for ${amountU} USDT?\n\nThis auto-approves USDT if needed (max 2 wallet confirmations).`)) return;
+      try {
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = "⏳ Checking approval...";
+        const usdt = getContract("MockUSDT");
+        const amountWei = ethers.parseUnits(String(amountU), 18);
+        const curAllowance = await usdt.allowance(state.account, CONFIG.addresses.Node);
+        if (curAllowance < amountWei) {
+          btn.textContent = "⏳ Approving USDT...";
+          const usdtW = getContract("MockUSDT", true);
+          const txA = await usdtW.approve(CONFIG.addresses.Node, amountWei);
+          await txA.wait();
+        }
+        btn.textContent = "⏳ Buying Shares...";
+        const nodeC = getContract("Node", true);
+        const tx = await nodeC.buyNode(amountWei);
+        await tx.wait();
+        alert(`✅ Bought ${shares} Node Shares!\n\nAmount: ${amountU} USDT\nShares: ${shares}\nTx: ${tx.hash}\n\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+        btn.textContent = "✓ Purchased!";
+        setTimeout(() => { btn.textContent = oldText; btn.disabled = false; render(); }, 3000);
+      } catch (e) {
+        alert("Buy Node failed: " + (e.reason || e.message));
+        btn.disabled = false;
+        btn.textContent = btn.dataset.tier ? `Purchase for ${amountU} USDT` : "💎 Buy Node Shares";
+      }
     }
 
     // Init
