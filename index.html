@@ -36,6 +36,8 @@
     a { color: var(--gold); text-decoration: none; }
     a:hover { text-decoration: underline; }
     button { font-family: inherit; cursor: pointer; }
+
+    /* Top bar */
     .topbar { position: sticky; top: 0; z-index: 50; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 10px 0; }
     .topbar-inner { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
     .logo { display: flex; align-items: center; gap: 10px; }
@@ -48,13 +50,19 @@
     .menu-btn span { display: block; width: 22px; height: 2px; background: var(--fg); border-radius: 1px; }
     .menu-btn span:nth-child(2) { width: 16px; align-self: flex-end; }
     .menu-btn span:nth-child(3) { width: 22px; }
+
+    /* Container */
     .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px 0; }
+
+    /* Stat cards — gold border */
     .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
     .stat-card { background: var(--bg-card); border: 1px solid var(--gold-border); border-radius: 12px; padding: 14px 18px; }
     .stat-label { color: var(--muted); font-size: 0.85rem; margin-bottom: 6px; }
     .stat-value { font-size: 1.6rem; font-weight: 700; }
     .stat-value .unit { font-size: 0.85rem; color: var(--muted); margin-left: 4px; font-weight: 500; }
     @media (max-width: 768px) { .stat-row { grid-template-columns: 1fr; } }
+
+    /* Hero — Capital Protection (darker yellow) */
     .hero { background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%); border-radius: 16px; padding: 20px 24px; position: relative; overflow: hidden; margin-bottom: 16px; }
     .hero::after { content: ""; position: absolute; right: -40px; bottom: -40px; width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,0.25), transparent 70%); border-radius: 50%; }
     .hero h2 { font-size: 1.4rem; font-weight: 800; color: #0a0a0a; margin-bottom: 14px; }
@@ -75,6 +83,8 @@
     .btn-purchase:hover { background: var(--gold-3); }
     .btn-purchase:disabled { opacity: 0.5; cursor: not-allowed; }
     @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; } }
+
+    /* Plan cards */
     .plans-label { color: var(--fg); font-size: 0.95rem; margin: 22px 0 14px; max-width: 720px; }
     .plan-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
     @media (max-width: 900px) { .plan-row { grid-template-columns: 1fr; } }
@@ -87,16 +97,24 @@
     .plan-meta-row .col-value { color: var(--fg); font-size: 0.85rem; font-weight: 600; }
     .plan-amount { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
     .plan-purchase-btn { position: absolute; right: 14px; top: 18px; }
+
+    /* Notice */
     .notice { padding: 16px 20px; border-radius: 12px; margin: 20px 0; font-size: 0.9rem; }
     .notice-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; }
     .notice-info { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+
+    /* Bottom nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0 14px; z-index: 50; }
     .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); background: transparent; border: 0; padding: 6px 12px; font-size: 0.75rem; cursor: pointer; }
     .nav-item.active { color: var(--gold); }
     .nav-item svg { width: 22px; height: 22px; }
     .nav-item:hover { color: var(--gold); }
+
+    /* Page heading */
     .page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
     .page-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 22px; }
+
+    /* Forms */
     input, select { width: 100%; padding: 12px 14px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; font-family: inherit; }
     input:focus, select:focus { outline: none; border-color: var(--gold); }
     label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
@@ -107,6 +125,8 @@
     input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; background: var(--bg-card-2); border-radius: 4px; outline: none; }
     input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
     input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
+
+    /* Node tier progression — medals */
     .tier-progress { display: flex; align-items: center; gap: 4px; margin: 14px 0; }
     .tier-pip { width: 36px; height: 36px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--muted); position: relative; font-weight: 700; }
     .tier-pip.completed { background: var(--gold); color: #0a0a0a; border-color: var(--gold); }
@@ -115,6 +135,8 @@
     .tier-line { flex: 1; height: 3px; background: var(--border); }
     .tier-line.done { background: var(--gold); }
     .tier-list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+
+    /* Misc */
     .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -124,6 +146,8 @@
     .social-icons a { width: 36px; height: 36px; border-radius: 50%; background: var(--bg-card-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--fg); }
     .social-icons a:hover { background: var(--gold); color: #0a0a0a; text-decoration: none; }
     .qr-block { background: white; padding: 12px; border-radius: 12px; display: inline-block; }
+
+    /* Modal */
     .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
     .modal.open { display: flex; }
     .modal-inner { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; }
@@ -132,6 +156,7 @@
   </style>
 </head>
 <body>
+  <!-- Top bar -->
   <div class="topbar">
     <div class="topbar-inner">
       <a href="#/dashboard" class="logo">
@@ -178,10 +203,16 @@
       </div>
     </div>
   </div>
+
+  <!-- App -->
   <div class="container" id="app"></div>
+
+  <!-- Modal -->
   <div class="modal" id="modal">
     <div class="modal-inner" id="modalInner"></div>
   </div>
+
+  <!-- Bottom nav -->
   <nav class="bottom-nav">
     <button class="nav-item active" data-route="dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
@@ -204,7 +235,11 @@
       Account
     </button>
   </nav>
+
   <script>
+    // ============================================================
+    // Config
+    // ============================================================
     const CONFIG = {
       chainId: 97,
       chainName: "BSC Testnet",
@@ -225,6 +260,7 @@
         { id: 1, name: "Plan B", monthly: 15, months: 10, min: 500,  ins: 70, label: "Auto Selling" },
         { id: 2, name: "Plan C", monthly: 25, months: 5,  min: 1000, ins: 70, label: "Auto Selling" },
       ],
+      // Node tiers with medal icons (used in Node + Network pages)
       tiers: [
         { name: "V2", minU: 500,   shares: 5,   desc: "Purchase a 500U node to attain V2 tier.", type: "medal-bronze" },
         { name: "V3", minU: 1000,  shares: 10,  desc: "Purchase a 1,000U node to attain V3 tier.", type: "medal-gold" },
@@ -233,80 +269,105 @@
       ],
     };
 
+    // SVG icon helpers — match original 3D medal/gem designs
     function tierIcon(type, size = 36) {
       const s = size;
       if (type === "medal-bronze") {
+        // V2: hex bronze medal, no wings
         return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 64 84" fill="none">
           <defs>
             <linearGradient id="bG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f59e0b"/><stop offset="0.5" stop-color="#b45309"/><stop offset="1" stop-color="#7c2d12"/></linearGradient>
             <linearGradient id="bStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
           </defs>
+          <!-- ribbon -->
           <path d="M22 52 L14 84 L32 70 L50 84 L42 52 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
           <path d="M22 52 L32 70 L42 52" fill="#991b1b" opacity="0.5"/>
+          <!-- hex body (tall hex) -->
           <path d="M32 2 L60 16 L60 42 L32 58 L4 42 L4 16 Z" fill="url(#bG)" stroke="#451a03" stroke-width="1.5"/>
+          <!-- inner border -->
           <path d="M32 8 L54 20 L54 40 L32 52 L10 40 L10 20 Z" fill="none" stroke="#fde68a" stroke-width="1" opacity="0.6"/>
+          <!-- star -->
           <path d="M32 16 L36 26 L46 26 L38 33 L41 43 L32 36 L23 43 L26 33 L18 26 L28 26 Z" fill="url(#bStar)" stroke="#92400e" stroke-width="0.5"/>
         </svg>`;
       }
       if (type === "medal-gold") {
+        // V3: hex gold medal with wings
         return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 80 104" fill="none">
           <defs>
             <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="0.5" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/></linearGradient>
             <linearGradient id="gStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbeb"/><stop offset="1" stop-color="#fcd34d"/></linearGradient>
             <linearGradient id="gWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#a16207"/></linearGradient>
           </defs>
+          <!-- ribbon -->
           <path d="M30 64 L20 104 L40 88 L60 104 L50 64 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
           <path d="M30 64 L40 88 L50 64" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing -->
           <path d="M22 38 Q 0 32, 0 50 Q 0 60, 18 56 Q 22 50, 22 38 Z" fill="url(#gWing)" stroke="#78350f" stroke-width="0.5"/>
           <path d="M4 40 Q 8 44, 8 48" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
           <path d="M4 46 Q 8 50, 8 54" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <!-- right wing -->
           <path d="M58 38 Q 80 32, 80 50 Q 80 60, 62 56 Q 58 50, 58 38 Z" fill="url(#gWing)" stroke="#78350f" stroke-width="0.5"/>
           <path d="M76 40 Q 72 44, 72 48" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
           <path d="M76 46 Q 72 50, 72 54" stroke="#fffbeb" stroke-width="0.5" fill="none"/>
+          <!-- hex body -->
           <path d="M40 2 L68 16 L68 50 L40 68 L12 50 L12 16 Z" fill="url(#gG)" stroke="#78350f" stroke-width="1.5"/>
+          <!-- inner border -->
           <path d="M40 8 L62 20 L62 46 L40 60 L18 46 L18 20 Z" fill="none" stroke="#fef3c7" stroke-width="1" opacity="0.7"/>
+          <!-- star -->
           <path d="M40 20 L44 30 L54 30 L46 37 L49 47 L40 40 L31 47 L34 37 L26 30 L36 30 Z" fill="url(#gStar)" stroke="#92400e" stroke-width="0.5"/>
         </svg>`;
       }
       if (type === "medal-gold-big") {
+        // V3 Premium: bigger hex gold medal with bigger wings
         return `<svg width="${s}" height="${s*1.3}" viewBox="0 0 96 124" fill="none">
           <defs>
             <linearGradient id="ggG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="0.5" stop-color="#f59e0b"/><stop offset="1" stop-color="#92400e"/></linearGradient>
             <linearGradient id="ggStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbeb"/><stop offset="1" stop-color="#fcd34d"/></linearGradient>
             <linearGradient id="ggWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#a16207"/></linearGradient>
           </defs>
+          <!-- ribbon -->
           <path d="M36 78 L24 124 L48 106 L72 124 L60 78 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
           <path d="M36 78 L48 106 L60 78" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing (bigger with more detail) -->
           <path d="M26 46 Q 0 40, 0 60 Q 0 74, 22 70 Q 26 62, 26 46 Z" fill="url(#ggWing)" stroke="#78350f" stroke-width="0.5"/>
           <path d="M4 48 Q 8 52, 8 56" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
           <path d="M4 54 Q 10 60, 10 64" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
           <path d="M6 60 Q 12 66, 14 68" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <!-- right wing -->
           <path d="M70 46 Q 96 40, 96 60 Q 96 74, 74 70 Q 70 62, 70 46 Z" fill="url(#ggWing)" stroke="#78350f" stroke-width="0.5"/>
           <path d="M92 48 Q 88 52, 88 56" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
           <path d="M92 54 Q 86 60, 86 64" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
           <path d="M90 60 Q 84 66, 82 68" stroke="#fffbeb" stroke-width="0.8" fill="none"/>
+          <!-- hex body (bigger) -->
           <path d="M48 2 L82 18 L82 60 L48 80 L14 60 L14 18 Z" fill="url(#ggG)" stroke="#78350f" stroke-width="2"/>
           <path d="M48 10 L74 22 L74 56 L48 70 L22 56 L22 22 Z" fill="none" stroke="#fef3c7" stroke-width="1.2" opacity="0.7"/>
+          <!-- star -->
           <path d="M48 24 L53 36 L66 36 L55 44 L60 56 L48 48 L36 56 L41 44 L30 36 L43 36 Z" fill="url(#ggStar)" stroke="#92400e" stroke-width="0.8"/>
         </svg>`;
       }
       if (type === "gem-purple") {
+        // V4: hex purple gem with wings
         return `<svg width="${s+6}" height="${(s+6)*1.3}" viewBox="0 0 88 114" fill="none">
           <defs>
             <linearGradient id="pG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4b5fd"/><stop offset="0.5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
             <linearGradient id="pStar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
             <linearGradient id="pWing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#5b21b6"/></linearGradient>
           </defs>
+          <!-- ribbon -->
           <path d="M32 70 L22 114 L44 96 L66 114 L56 70 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/>
           <path d="M32 70 L44 96 L56 70" fill="#991b1b" opacity="0.5"/>
+          <!-- left wing -->
           <path d="M24 42 Q 0 36, 0 56 Q 0 68, 20 64 Q 24 56, 24 42 Z" fill="url(#pWing)" stroke="#3b0764" stroke-width="0.5"/>
           <path d="M4 44 Q 8 48, 8 52" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
           <path d="M4 50 Q 10 56, 10 60" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <!-- right wing -->
           <path d="M64 42 Q 88 36, 88 56 Q 88 68, 68 64 Q 64 56, 64 42 Z" fill="url(#pWing)" stroke="#3b0764" stroke-width="0.5"/>
           <path d="M84 44 Q 80 48, 80 52" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
           <path d="M84 50 Q 78 56, 78 60" stroke="#ede9fe" stroke-width="0.8" fill="none"/>
+          <!-- hex body -->
           <path d="M44 2 L76 16 L76 54 L44 74 L12 54 L12 16 Z" fill="url(#pG)" stroke="#3b0764" stroke-width="1.5"/>
           <path d="M44 10 L68 22 L68 50 L44 64 L20 50 L20 22 Z" fill="none" stroke="#ede9fe" stroke-width="1" opacity="0.6"/>
+          <!-- crown-like emblem instead of star -->
           <path d="M30 40 L34 32 L38 38 L44 28 L50 38 L54 32 L58 40 L44 50 Z" fill="url(#pStar)" stroke="#4c1d95" stroke-width="0.5"/>
         </svg>`;
       }
@@ -318,14 +379,23 @@
         <defs>
           <linearGradient id="giftR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fca5a5"/><stop offset="1" stop-color="#b91c1c"/></linearGradient>
         </defs>
+        <!-- box bottom -->
         <path d="M10 30 L10 58 L54 58 L54 30 Z" fill="url(#giftR)" stroke="#7f1d1d" stroke-width="0.8"/>
+        <!-- box top -->
         <path d="M14 22 L14 32 L50 32 L50 22 Z" fill="url(#giftR)" stroke="#7f1d1d" stroke-width="0.8"/>
+        <!-- vertical ribbon -->
         <rect x="29" y="22" width="6" height="36" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.4"/>
+        <!-- horizontal ribbon -->
         <rect x="10" y="26" width="44" height="4" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.4"/>
+        <!-- bow left -->
         <ellipse cx="22" cy="20" rx="8" ry="5" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(-20 22 20)"/>
+        <!-- bow right -->
         <ellipse cx="42" cy="20" rx="8" ry="5" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(20 42 20)"/>
+        <!-- knot -->
         <circle cx="32" cy="20" r="3" fill="#fff5f5" stroke="#7f1d1d" stroke-width="0.5"/>
+        <!-- heart 1 -->
         <path d="M32 10 C 30 6, 24 6, 24 12 C 24 16, 32 18, 32 18 C 32 18, 40 16, 40 12 C 40 6, 34 6, 32 10 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="0.5" transform="rotate(-15 32 14)"/>
+        <!-- heart 2 small -->
         <path d="M40 6 C 39 4, 36 4, 36 7 C 36 9, 40 10, 40 10 C 40 10, 44 9, 44 7 C 44 4, 41 4, 40 6 Z" fill="#fca5a5" stroke="#7f1d1d" stroke-width="0.4" transform="rotate(15 40 8)"/>
       </svg>`;
     }
@@ -355,13 +425,13 @@
         "function claimMonthlyReturn(uint256) returns (uint256)",
       ],
       Insurance: [
-        "function getUserClaims(address) view returns (tuple(uint256 purchaseId,address user,uint256 originalAmount,uint256 recoveryAmount,uint256 bcfBurned,uint256 claimTime,uint8 monthClaimed,bool processed)[])",
-        "function getInsurancePoolBalance() view returns (uint256)",
+        "function activateInsurance(uint256 purchaseId)",
+        "function claimInsurance(uint256 purchaseId) returns (uint256)",
+        "function getPolicy(uint256 purchaseId) view returns (uint256,uint256,uint256,bool)",
+        "function getProtectionAmount(uint256 purchaseId) view returns (uint256)",
         "function getTotalClaimed() view returns (uint256)",
-        "function getTotalBCFBurned() view returns (uint256)",
-        "function calculateRecoveryAmount(uint8 planId, uint256 originalAmount, uint256 purchaseTime) view returns (uint256 recoveryAmount, uint8 recoveryPercentage, uint8 currentMonth)",
-        "function canClaimInsurance(address user, uint256 purchaseId) view returns (bool)",
-        "function claimInsurance(uint256 purchaseId, uint8 planId, uint256 originalAmount, uint256 purchaseTime, uint256 bcfBalance)",
+        "function fund(uint256 amountU)",
+        "function monthsSince(uint256 since) view returns (uint256)",
       ],
       Operations: [
         "function getPoolBalance() view returns (uint256)",
@@ -373,37 +443,44 @@
         "function getTotalReturns(address) view returns (uint256)",
       ],
       Node: [
-        "function getNodeInfo(address) view returns (tuple(uint8 tier,uint256 usdtValue,uint256 shares,uint256 totalBCFBonus,uint256 weeklyRewards,uint256 totalRewardsEarned,uint256 lastRewardTime,uint256 purchaseTime,bool hasMarketingFund,uint256 marketingFundAmount,uint256 mealAllowance))",
-        "function getNodeValue(address) view returns (uint256)",
-        "function getNodeDividends(address) view returns (uint256)",
-        "function estimateWeeklyReward(address) view returns (uint256)",
-        "function getTierConfig(uint8) view returns (tuple(uint256 cost,bool requiresMarketing,uint256 marketingFundAmount,uint256 mealAllowance))",
-        "function purchaseNode(uint8)",
+        "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
+        "function buyNode(uint256) returns (uint256)",
+        "function claimNodeReward() returns (uint256)",
+        "function getTotalShares() view returns (uint256)",
+        "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
       Referral: [
         "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
       ],
     };
 
+    // MockUSDT owner (deployer)
     const MOCK_USDT_OWNER = "0xfEf0bd6F55b755602b69fA7a62CBC98E41f14cff";
 
+    // ============================================================
+    // State
+    // ============================================================
     let state = {
       account: null,
       provider: null,
       signer: null,
-      readProvider: null,
+      readProvider: null,  // Fallback public RPC for reads
       chainOk: false,
       deployed: false,
     };
     let _selectedPlan = 0;
     let _nodeAmount = 1000;
 
+    // Initialize fallback read-only provider
     try {
       state.readProvider = new ethers.JsonRpcProvider("https://bsc-testnet-rpc.publicnode.com", { chainId: 97, name: "BSC Testnet" });
     } catch (e) {
       console.error("Read provider init failed:", e);
     }
 
+    // ============================================================
+    // Wallet
+    // ============================================================
     async function connectWallet() {
       if (!window.ethereum) { alert("Please install MetaMask: https://metamask.io/download/"); return; }
       try {
@@ -466,6 +543,7 @@
       const menu = document.createElement("div");
       menu.id = "accountMenu";
       menu.style.cssText = `position:absolute;top:60px;right:24px;background:#1a1a1a;border:1px solid rgba(251,191,36,0.3);border-radius:12px;padding:14px;min-width:280px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.5);`;
+      const explorerUrl = `${CONFIG.explorer}/address/${state.account}`;
       menu.innerHTML = `
         <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);">
           <div style="font-size:0.75rem;color:#9ca3af;margin-bottom:4px;">Connected Account</div>
@@ -489,11 +567,13 @@
         </button>
       `;
       document.body.appendChild(menu);
+      // Bind menu buttons
       menu.querySelectorAll(".account-menu-btn").forEach(b => {
         b.addEventListener("mouseenter", () => b.style.background = "rgba(255,255,255,0.05)");
         b.addEventListener("mouseleave", () => b.style.background = "transparent");
         b.addEventListener("click", (ev) => handleAccountAction(ev.target.closest("button").dataset.action));
       });
+      // Close on outside click
       setTimeout(() => {
         document.addEventListener("click", closeAccountMenu, { once: true });
       }, 100);
@@ -518,12 +598,17 @@
       } else if (action === "switch") {
         await switchToBSC();
       } else if (action === "disconnect") {
+        if (window.ethereum && window.ethereum.removeAllListeners) {
+          // Just clear local state — MetaMask doesn't have a "disconnect" API
+          // The user can also disconnect from MetaMask itself
+        }
         state.account = null;
         state.provider = null;
         state.signer = null;
         state.chainOk = false;
         state.deployed = false;
         updateConnectButton();
+        // Force re-render to clear all user-specific data
         render();
         alert("Disconnected locally.\n\n(Note: To fully disconnect, also click the MetaMask icon → Connected sites → Disconnect this site)");
       }
@@ -534,11 +619,15 @@
         if (!state.signer) return null;
         return new ethers.Contract(CONFIG.addresses[name], ABIS[name], state.signer);
       }
+      // For reads: prefer MetaMask provider, fall back to public RPC
       const provider = state.provider || state.readProvider;
       if (!provider) return null;
       return new ethers.Contract(CONFIG.addresses[name], ABIS[name], provider);
     }
 
+    // ============================================================
+    // Helpers
+    // ============================================================
     function fmt(n, dp = 2) {
       if (n === 0 || n === "0") return "0";
       const num = Number(n);
@@ -549,6 +638,9 @@
     }
     function addrShort(a) { return a ? a.slice(0, 6) + "..." + a.slice(-4) : "—"; }
 
+    // ============================================================
+    // Modal
+    // ============================================================
     function showModal(title, body, btnText = "Close", btnAction = null) {
       const m = document.getElementById("modal");
       const inner = document.getElementById("modalInner");
@@ -589,6 +681,7 @@
               <div style="font-size:1.4rem;font-weight:700;color:var(--gold);">0 USDT</div>
             </div>
           </div>
+
           <div style="background:var(--bg-elev);border-radius:8px;padding:18px;margin-bottom:18px;">
             <h3 style="font-size:1rem;margin-bottom:14px;color:var(--fg);">Your Protection Status</h3>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px;">
@@ -607,6 +700,7 @@
             </div>
             <button class="btn-gold full" id="claimProtectionBtn" style="padding:14px;font-size:1rem;" disabled>Claim 0 USDT</button>
           </div>
+
           <div>
             <h3 style="font-size:1rem;margin-bottom:14px;color:var(--fg);">Protection Schedule</h3>
             <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;font-size:0.9rem;">
@@ -617,6 +711,7 @@
               `).join('')}
             </div>
           </div>
+
           <div style="display:flex;gap:10px;margin-top:20px;">
             <button class="btn-gold" id="insuranceCloseBtn" style="flex:1;background:var(--bg-card-2);border:1px solid var(--border);">Close</button>
           </div>
@@ -626,194 +721,47 @@
       document.getElementById("insuranceCloseBtn").onclick = () => m.classList.remove("open");
     }
 
-    async function openInsuranceClaimModal() {
-      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-      if (!state.account) { await connectWallet(); return; }
-
-      showModal("Capital Protection", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Loading your eligible plans... <span class="loader"></span></p>`, "Close");
-
-      try {
-        const inv = getContract("Investment");
-        const ins = getContract("Insurance");
-        const bcfC = getContract("BCFToken");
-
-        const ids = Array.from(
-          await inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account))
-        ).map(n => Number(n));
-
-        const purchases = (await Promise.all(ids.map(id => inv.getPurchaseInfo(id).then(p => ({
-          id, planId: Number(p[1]), amount: p[2], startTime: p[3], active: p[7]
-        })).catch(() => null)))).filter(p => p && p.active);
-
-        const eligible = [];
-        for (const p of purchases) {
-          const can = await ins.canClaimInsurance(state.account, p.id).catch(() => false);
-          if (can) eligible.push(p);
-        }
-
-        const inner = document.getElementById("modalInner");
-        if (!inner) return;
-
-        if (eligible.length === 0) {
-          inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--muted);text-align:center;padding:20px 0;">No active plans are currently eligible for an insurance claim.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-          document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-          return;
-        }
-
-        const rows = await Promise.all(eligible.map(async p => {
-          const [recoveryAmount, recoveryPct] = await ins.calculateRecoveryAmount(p.planId, p.amount, p.startTime).catch(() => [0n, 0]);
-          return { ...p, recoveryAmount, recoveryPct: Number(recoveryPct) };
-        }));
-
-        inner.innerHTML = `
-          <h3>Capital Protection</h3>
-          <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;">Select a plan to claim insurance on. This will close the plan and refund the recovery amount in USDT (a portion of BCF will be burned).</p>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            ${rows.map(r => `
-              <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <div style="font-weight:700;">#${r.id} — Plan ${["A","B","C"][r.planId] || r.planId}</div>
-                  <div style="color:var(--muted);font-size:0.8rem;">Recovery: ${r.recoveryPct}% (${Number(ethers.formatUnits(r.recoveryAmount, 18)).toFixed(2)} USDT)</div>
-                </div>
-                <button class="btn-purchase claim-ins-row" data-id="${r.id}" data-plan="${r.planId}" data-amount="${r.amount}" data-start="${r.startTime}" style="position:static;">Claim</button>
-              </div>
-            `).join('')}
-          </div>
-          <div class="modal-foot"><button class="btn-gold full" id="modalClose" style="background:var(--bg-card-2);border:1px solid var(--border);">Close</button></div>
-        `;
-        document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-        inner.querySelectorAll(".claim-ins-row").forEach(btn => {
-          btn.addEventListener("click", async () => {
-            btn.textContent = "⏳ Claiming...";
-            btn.disabled = true;
-            try {
-              const bcfBal = await bcfC.balanceOf(state.account);
-              const insW = getContract("Insurance", true);
-              const tx = await insW.claimInsurance(btn.dataset.id, btn.dataset.plan, btn.dataset.amount, btn.dataset.start, bcfBal);
-              await tx.wait();
-              alert("✅ Insurance claimed! Tx: " + tx.hash);
-              document.getElementById("modal").classList.remove("open");
-              render();
-            } catch (e) {
-              alert("Claim failed: " + (e.reason || e.message));
-              btn.textContent = "Claim";
-              btn.disabled = false;
-            }
-          });
-        });
-      } catch (e) {
-        console.error("Insurance claim modal error:", e);
-        const inner = document.getElementById("modalInner");
-        if (inner) inner.innerHTML = `<h3>Capital Protection</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error loading plans: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-        const closeBtn = document.getElementById("modalClose");
-        if (closeBtn) closeBtn.onclick = () => document.getElementById("modal").classList.remove("open");
-      }
-    }
-
-    const NODE_TIER_COSTS = { "V2": 500, "V3": 1000, "V3 Premium": 5000, "V4": 10000 };
-
-    async function findNodeTierIndex(costUsdt) {
-      const nodeC = getContract("Node");
-      const targetWei = ethers.parseUnits(String(costUsdt), 18);
-      for (let i = 0; i < 10; i++) {
-        try {
-          const cfg = await nodeC.getTierConfig(i);
-          if (BigInt(cfg.cost) === targetWei) return { index: i, cost: cfg.cost };
-        } catch (e) { }
-      }
-      return null;
-    }
-
-    async function purchaseNodeTier(tierName) {
-      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
-      if (!state.account) { await connectWallet(); return; }
-      const costUsdt = NODE_TIER_COSTS[tierName];
-      if (!costUsdt) { alert("Unknown tier: " + tierName); return; }
-
-      showModal(tierName + " Node", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Looking up this tier on-chain... <span class="loader"></span></p>`, "Close");
-      try {
-        const found = await findNodeTierIndex(costUsdt);
-        const inner = document.getElementById("modalInner");
-        if (!found) {
-          if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">This tier's cost (${costUsdt} USDT) doesn't match any tier configured on the deployed Node contract.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-          if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-          return;
-        }
-        if (inner) {
-          inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--muted);margin-bottom:16px;">Purchase for <strong style="color:var(--gold);">${costUsdt} USDT</strong> (on-chain tier #${found.index}).</p><div class="modal-foot"><button class="btn-gold full" id="confirmNodeBuy">Confirm Purchase</button></div>`;
-          document.getElementById("confirmNodeBuy").onclick = async () => {
-            const btn = document.getElementById("confirmNodeBuy");
-            btn.disabled = true;
-            try {
-              btn.textContent = "⏳ Checking approval...";
-              const usdt = getContract("MockUSDT");
-              const allowance = await usdt.allowance(state.account, CONFIG.addresses.Node);
-              if (allowance < found.cost) {
-                btn.textContent = "⏳ Step 1/2: Approving USDT...";
-                const usdtW = getContract("MockUSDT", true);
-                const txA = await usdtW.approve(CONFIG.addresses.Node, found.cost);
-                await txA.wait();
-              }
-              btn.textContent = "⏳ Step 2/2: Purchasing Node...";
-              const nodeW = getContract("Node", true);
-              const tx = await nodeW.purchaseNode(found.index);
-              await tx.wait();
-              alert("✅ " + tierName + " Node purchased! Tx: " + tx.hash);
-              document.getElementById("modal").classList.remove("open");
-              render();
-            } catch (e) {
-              alert("Purchase failed: " + (e.reason || e.message));
-              btn.disabled = false;
-              btn.textContent = "Confirm Purchase";
-            }
-          };
-        }
-      } catch (e) {
-        console.error("Node tier lookup error:", e);
-        const inner = document.getElementById("modalInner");
-        if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
-        if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
-      }
-    }
-
+    // ============================================================
+    // Router
+    // ============================================================
     function getRoute() {
       const h = location.hash || "#/dashboard";
       return h.replace("#", "").replace(/^\//, "") || "dashboard";
     }
     function go(r) { location.hash = "#/" + r; }
 
+    // ============================================================
+    // Pages
+    // ============================================================
     function renderDashboard() {
+      let totalPurchase = 0, totalReturn = 0, networkPerf = 0;
+      let bcfPrice = 0, poolVal = 0, insPoolVal = 0;
       let inv = 0, currentMonth = "0/0 Months", protection = "Inactive";
+      let totalActivePlans = 0;
 
       if (state.deployed) {
         try {
           const invContract = getContract("Investment");
           if (state.account) {
+            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
             Promise.race([
               invContract.getUserPurchases(state.account).catch(() => invContract.userPurchases(state.account)),
               new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout")), 8000))
             ]).then(ids => {
               const idList = Array.from(ids || []).map(n => Number(n));
               const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
-                id, plan: Number(p[1]), amount: p[2], active: p[7]
+                id, plan: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18), active: p[7]
               })).catch(() => null));
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
-                const totalActivePlans = active.length;
-                const userTotal = active.reduce((s, p) => s + BigInt(p.amount), 0n);
-                const userReturn = (userTotal * 15n) / 100n;
+                totalActivePlans = active.length;
+                const userTotal = active.reduce((s, p) => s + Number(p.amountStr), 0);
                 const el1 = document.getElementById("dashActivePlans");
                 const el2 = document.getElementById("dashMyPurchase");
                 const el3 = document.getElementById("dashMyReturn");
                 if (el1) el1.textContent = totalActivePlans;
                 if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                if (el3) el3.textContent = Number(ethers.formatUnits(userReturn, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-              }).catch(e => {
-                console.error("Dashboard totals compute error:", e);
-                const el2 = document.getElementById("dashMyPurchase");
-                const el3 = document.getElementById("dashMyReturn");
-                if (el2) el2.textContent = "err";
-                if (el3) el3.textContent = "err";
+                if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
               });
             }).catch(e => {
               console.error("Dashboard user purchases error:", e);
@@ -822,6 +770,7 @@
             });
           }
 
+          // BCF Pool Value (Operations pool via Dashboard)
           const dashC = getContract("Dashboard");
           Promise.race([
             dashC.getPoolBalance(),
@@ -831,6 +780,7 @@
             if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
           }).catch(e => console.error("BCF pool error:", e));
 
+          // Insurance Pool Value (USDT held by Insurance contract)
           const usdtC = getContract("MockUSDT");
           usdtC.balanceOf(CONFIG.addresses.Insurance).then(bal => {
             const el = document.getElementById("dashInsPool");
@@ -854,6 +804,7 @@
             <div class="stat-value" style="color:#10b981;"><span id="dashActivePlans">0</span></div>
           </div>
         </div>
+
         <div class="stat-row" style="grid-template-columns:repeat(3,1fr);">
           <div class="stat-card">
             <div class="stat-label">BCF Price</div>
@@ -868,6 +819,7 @@
             <div class="stat-value"><span id="dashInsPool">0</span><span class="unit">USDT</span></div>
           </div>
         </div>
+
         <div class="hero" style="margin-top:8px;margin-bottom:24px;">
           <h2>Capital Protection</h2>
           <div class="hero-grid">
@@ -889,7 +841,9 @@
             <button class="btn-outline-dark" id="viewIns">View Details</button>
           </div>
         </div>
+
         <p class="plans-label">Purchase BCF Tokens and Automatically Earn Profits Through Smart Contracts with 70% Capital Protection.</p>
+
         <div class="plan-row">
           ${CONFIG.plans.map(p => `
             <div class="plan-card">
@@ -905,6 +859,7 @@
             </div>
           `).join('')}
         </div>
+
         ${!state.deployed ? `<div class="notice notice-warning"><strong>⏳ Awaiting Testnet Deployment</strong> — Contracts pending. UI is fully built and will activate when contracts go live.</div>` : ''}
         ${state.account && !state.chainOk ? `<div class="notice notice-warning">⚠️ Wrong network — <a href="#" id="switchNet">switch to BSC Testnet</a></div>` : ''}
         ${state.account && state.deployed ? `
@@ -931,9 +886,15 @@
           </div>
         ` : ''}
         ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() && state.deployed ? `
-          <div class="notice notice-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-            <span><strong>🛠 Owner Panel</strong> — Connected as MockUSDT owner. Mint test USDT:</span>
-            <button class="btn-purchase" id="mintUsdt" style="position:static;">Mint 10,000 USDT</button>
+          <div class="notice notice-info" style="display:flex;flex-direction:column;align-items:stretch;gap:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <span><strong>🛠 Owner Panel</strong> — Connected as MockUSDT owner:</span>
+              <button class="btn-purchase" id="mintUsdt" style="position:static;">Mint 10,000 USDT</button>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <span>Fund Insurance Pool (for claim payouts):</span>
+              <button class="btn-purchase" id="fundIns" style="position:static;">Fund Insurance 5,000 USDT</button>
+            </div>
           </div>
         ` : ''}
       `;
@@ -943,27 +904,38 @@
       return `
         <h1 class="page-title">Capital Protection Insurance</h1>
         <p class="page-sub">70% coverage in early months, decreasing over time</p>
+
         <div class="hero" style="margin-bottom:20px;">
           <h2>Capital Protection</h2>
           <div class="hero-grid">
             <div>
               <div class="hero-col-label">Investment</div>
-              <div class="hero-col-value">0 USDT</div>
+              <div class="hero-col-value" id="insInvestment">0 USDT</div>
             </div>
             <div>
               <div class="hero-col-label">Current Month</div>
-              <div class="hero-col-value">0/0 Months</div>
+              <div class="hero-col-value" id="insCurrentMonth">0/0 Months</div>
             </div>
             <div>
               <div class="hero-col-label">Protection</div>
-              <div class="hero-col-value">Inactive</div>
+              <div class="hero-col-value" id="insProtection">Inactive</div>
             </div>
           </div>
           <div class="hero-btns">
-            <button class="btn-dark" id="claimIns">Claim</button>
+            <button class="btn-dark" id="claimIns">Activate Insurance</button>
             <button class="btn-outline-dark" id="viewIns">View Details</button>
           </div>
         </div>
+
+        ${state.account ? `
+          <div class="stat-card" style="margin-bottom:16px;">
+            <h3 style="font-size:0.95rem;margin-bottom:14px;">🛡 Active Insurance Policies</h3>
+            <div id="insurancePolicyList"><p style="color:var(--muted);text-align:center;padding:14px 0;">Loading policies...</p></div>
+            <button class="btn-purchase" id="claimInsuranceBtn" style="position:static;width:100%;margin-top:14px;padding:14px;" ${!state.deployed ? 'disabled' : ''}>🛡 Claim Protection (USDT)</button>
+            <p style="color:var(--muted);font-size:0.75rem;margin-top:8px;text-align:center;">Owner must fund Insurance pool first. Use "Mint 10,000 USDT" then fund insurance (Owner Panel on Dashboard).</p>
+          </div>
+        ` : ''}
+
         <div class="stat-card" style="margin-bottom:16px;">
           <h3 style="font-size:0.95rem;margin-bottom:14px;color:var(--gold);">Protection Schedule</h3>
           <table class="table">
@@ -985,13 +957,14 @@
       return `
         <h1 class="page-title">Node System</h1>
         <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to start earning"}</p>
+
         <div class="stat-card" style="margin-bottom:20px;">
           <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Your Node</h3>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
-            <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;display:flex;align-items:center;gap:6px;">—</div></div>
-            <div><div class="stat-label">Node Dividend</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Node Shares</div><div style="font-weight:700;">0 (100 USDT = 1 Share)</div></div>
+            <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;" id="nodeTier">—</div></div>
+            <div><div class="stat-label">Total Invested</div><div style="font-weight:700;"><span id="nodeInvested">0</span> USDT</div></div>
+            <div><div class="stat-label">Node Shares</div><div style="font-weight:700;"><span id="nodeShares2">0</span></div></div>
+            <div><div class="stat-label">Claimable BCF</div><div style="font-weight:700;color:#10b981;"><span id="nodeClaimable">0</span></div></div>
           </div>
           <div class="tier-progress">
             ${CONFIG.tiers.map((t, i, arr) => `
@@ -1001,26 +974,9 @@
               ${i < arr.length - 1 ? `<div class="tier-line"></div>` : ''}
             `).join('')}
           </div>
+          <button class="btn-gold full" id="claimNodeReward" style="margin-top:14px;" ${!state.account || !state.deployed ? 'disabled' : ''}>🎁 Claim Node Reward (BCF)</button>
         </div>
-        <div class="stat-card" style="margin-bottom:20px;">
-          <h3 style="font-size:0.95rem;margin-bottom:14px;">Weekly Rewards</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
-            <div><div class="stat-label">This Week</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">—</div></div>
-          </div>
-          <button class="btn-gold full" id="viewRewardHistory">View Reward History</button>
-        </div>
-        <div class="stat-card" style="margin-bottom:20px;position:relative;padding-right:110px;min-height:120px;">
-          <div style="position:absolute;right:18px;top:18px;">${giftIcon(72)}</div>
-          <h3 style="font-size:0.95rem;margin-bottom:14px;">Monthly Bonus</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:14px;">
-            <div><div class="stat-label">Current Month</div><div style="font-weight:700;">—</div></div>
-            <div><div class="stat-label">Total Earned</div><div style="font-weight:700;">0%</div></div>
-            <div><div class="stat-label">Next Distribution In</div><div style="font-weight:700;">0 BCF</div></div>
-          </div>
-          <button class="btn-gold full" id="claimBonus">Claim Bonus</button>
-        </div>
+
         <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 12px;">Available Node Tiers</h3>
         ${CONFIG.tiers.map((t, idx) => `
           <div class="stat-card" style="margin-bottom:12px;position:relative;padding-right:120px;min-height:140px;">
@@ -1028,20 +984,20 @@
             <h3 style="font-size:0.95rem;margin-bottom:8px;">${t.name} Node — ${fmt(t.minU, 0)} USDT</h3>
             <div style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;line-height:1.6;white-space:pre-line;">${t.shares} Shares
 ${t.desc}</div>
-            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" ${!state.deployed ? 'disabled' : ''}>Purchase for ${fmt(t.minU, 0)} USDT</button>
+            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" data-amount="${t.minU}" ${!state.deployed ? 'disabled' : ''}>Purchase for ${fmt(t.minU, 0)} USDT</button>
           </div>
         `).join('')}
+
         <div class="stat-card" style="margin-top:24px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);">
-          <h3 style="font-size:1rem;margin-bottom:8px;color:var(--gold);">Purchase Node - Become a BCF Partner</h3>
+          <h3 style="font-size:1rem;margin-bottom:8px;color:var(--gold);">Custom Amount - Become a BCF Partner</h3>
           <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px;line-height:1.6;">
-            every 100 usdt get 1 share, can get 5% BCF COIN AND GET 4% Dividend forever<br>
-            Every $100 = 1 Share<br>
-            Earn 5% BCF Bonus + 4% Dividend Forever
+            Every 100 USDT = 1 Share<br>
+            Earn BCF rewards (500 BCF/share first month, +10% bonus, 10% monthly decay for 11 months)
           </p>
           <div style="margin-bottom:14px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
               <span style="color:var(--muted);font-size:0.8rem;">Enter Amount in USDT</span>
-              <span style="font-weight:700;display:flex;align-items:center;gap:8px;"><span id="nodeBalanceUsdt" style="background:var(--bg-card-2);padding:2px 6px;border-radius:4px;font-size:0.7rem;">Balance: 0 USDT</span> <span id="nodeAmtLabel" style="color:var(--gold);">${_nodeAmount} USDT</span></span>
+              <span style="font-weight:700;display:flex;align-items:center;gap:8px;"><span id="nodeBalanceUsdt" style="background:var(--bg-card-2);padding:2px 6px;border-radius:4px;font-size:0.7rem;">Balance: — USDT</span> <span id="nodeAmtLabel" style="color:var(--gold);">${_nodeAmount} USDT</span></span>
             </div>
             <input type="range" id="nodeAmount" min="100" max="10000" step="100" value="${_nodeAmount}" />
             <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:0.7rem;margin-top:4px;">
@@ -1050,19 +1006,16 @@ ${t.desc}</div>
           </div>
           <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:var(--muted);">USDT (50%):</span>
-              <span style="font-weight:700;" id="nodeUsdtSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span style="color:var(--muted);">Credit (50%):</span>
-              <span style="font-weight:700;" id="nodeCreditSplit">${(_nodeAmount * 0.5).toFixed(0)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
-              <span style="color:var(--muted);">Shares:</span>
+              <span style="color:var(--muted);">Shares to receive:</span>
               <span style="color:var(--gold);font-weight:700;" id="nodeShares">${(_nodeAmount / 100).toFixed(0)}</span>
             </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">
+              <span style="color:var(--muted);">Monthly reward (est.):</span>
+              <span style="color:#10b981;font-weight:700;" id="nodeMonthly">+${((_nodeAmount/100) * 1000).toLocaleString()} BCF / month</span>
+            </div>
           </div>
-          <button class="btn-gold full" id="purchaseNode" ${!state.deployed ? 'disabled' : ''}>Purchase</button>
+          <button class="btn-purchase" id="purchaseNode" style="position:static;width:100%;padding:16px;font-size:1.05rem;" ${!state.deployed ? 'disabled' : ''}>💎 Buy Node Shares</button>
+          <p style="color:var(--muted);font-size:0.75rem;margin-top:10px;text-align:center;">USDT will be auto-approved if needed. Maximum 2 wallet confirmations.</p>
         </div>
       `;
     }
@@ -1072,6 +1025,7 @@ ${t.desc}</div>
       return `
         <h1 class="page-title">Invest in BCF Plans</h1>
         <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to invest"}</p>
+
         ${state.account && state.deployed ? `
           <div class="stat-card" style="background:linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05));border:1px solid var(--gold-border);margin-bottom:16px;">
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
@@ -1081,6 +1035,7 @@ ${t.desc}</div>
             </div>
           </div>
         ` : ''}
+
         <div class="plan-row" style="margin-bottom:16px;">
           ${CONFIG.plans.map((p, idx) => `
             <div class="plan-card inv-plan ${idx === _selPlan ? 'active' : ''}" data-plan="${idx}" style="cursor:pointer;${idx === _selPlan ? 'border-color:var(--gold);background:rgba(59,130,246,0.05);' : ''}">
@@ -1095,6 +1050,7 @@ ${t.desc}</div>
             </div>
           `).join('')}
         </div>
+
         <div class="stat-card" style="max-width:700px;">
           <h3 style="font-size:0.95rem;margin-bottom:14px;">Buy Plan ${CONFIG.plans[_selPlan].name}</h3>
           <div class="form-row">
@@ -1104,10 +1060,12 @@ ${t.desc}</div>
               <input type="number" id="planAmount" value="${CONFIG.plans[_selPlan].min}" min="${CONFIG.plans[_selPlan].min}" style="background:transparent;border:0;padding:0;font-size:1.1rem;" />
             </div>
           </div>
+
           <div class="form-row">
             <label>Referrer (optional, 0x...)</label>
             <input type="text" id="planReferrer" placeholder="0x0000...0000" />
           </div>
+
           <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
               <span style="color:var(--muted);">Entry Fee (5%):</span>
@@ -1122,8 +1080,10 @@ ${t.desc}</div>
               <span style="color:#10b981;font-weight:700;" id="planMonthly">—</span>
             </div>
           </div>
+
           <button class="btn-purchase" id="buyPlanBtn" style="position:static;width:100%;padding:16px;font-size:1.05rem;" ${!state.deployed ? 'disabled' : ''}>💰 Buy Plan</button>
           <p style="color:var(--muted);font-size:0.75rem;margin-top:10px;text-align:center;">USDT will be auto-approved if needed. Maximum 2 wallet confirmations.</p>
+
           ${!state.deployed ? `<div class="notice notice-warning" style="margin-top:14px;">Contracts not deployed on testnet.</div>` : ''}
         </div>
       `;
@@ -1133,8 +1093,10 @@ ${t.desc}</div>
       return `
         <h1 class="page-title">Withdraw your USDT</h1>
         <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to withdraw"}</p>
+
         <div class="stat-card" style="max-width:700px;">
           <h3 style="font-size:0.95rem;margin-bottom:16px;">Your USDT balance <span style="color:var(--gold);font-weight:700;font-size:1.1rem;" id="usdtBalance">${state.account ? '<span class="loader"></span>' : '$0.00'}</span></h3>
+
           <div class="form-row">
             <label>You Send</label>
             <div style="display:flex;align-items:center;gap:10px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
@@ -1148,11 +1110,14 @@ ${t.desc}</div>
               <button class="pct-btn" data-pct="100">MAX</button>
             </div>
           </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px;">
             <span style="color:var(--muted);font-size:0.85rem;">Slippage</span>
             <span style="background:var(--bg-card-2);padding:4px 10px;border-radius:6px;font-size:0.85rem;">0.6%</span>
           </div>
+
           <button class="btn-gold full" id="withdrawBtn" ${!state.deployed ? 'disabled' : ''}>Withdraw USDT</button>
+
           <div style="margin-top:20px;">
             <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Fee Distribution</h4>
             <div style="font-size:0.85rem;color:var(--muted);line-height:1.8;">
@@ -1167,6 +1132,8 @@ ${t.desc}</div>
     function renderNetwork() {
       const refLink = state.account ? `https://bcf-dapp.vercel.app/ref/${state.account}` : "https://bcf-dapp.vercel.app/ref/<your-address>";
       const levels = ["V1","V2","V3","V4"];
+      const earned = ["Locked","Locked","Locked","Locked"];
+      // QR code
       let qrSvg = "";
       try {
         const qr = qrcode(0, 'M');
@@ -1178,6 +1145,7 @@ ${t.desc}</div>
       return `
         <h1 class="page-title">Refer & Earn BCF Tokens</h1>
         <p class="page-sub" style="color:var(--gold);">Invite friends and get rewards for every signup!</p>
+
         <div class="stat-card" style="margin-bottom:16px;">
           <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Earnings Breakdown</h3>
           <div style="background:var(--bg-elev);padding:14px 16px;border-radius:8px;margin-bottom:14px;">
@@ -1190,6 +1158,7 @@ ${t.desc}</div>
             <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
           </div>
         </div>
+
         <div class="stat-card" style="margin-bottom:16px;">
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;">
             <div><div class="stat-label">Total Referrals</div><div style="font-size:1.4rem;font-weight:700;">0</div></div>
@@ -1208,6 +1177,7 @@ ${t.desc}</div>
             <button class="btn-gold" id="copyRefLink">Copy Referral Link</button>
           </div>
         </div>
+
         <div class="stat-card" style="margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <h3 style="font-size:0.95rem;">V-Level Progress</h3>
@@ -1240,6 +1210,7 @@ ${t.desc}</div>
           </div>
           <button class="btn-gold full" id="claimRewards" ${!state.deployed ? 'disabled' : ''}>Claim Rewards</button>
         </div>
+
         <div class="stat-card">
           <h3 style="font-size:0.95rem;margin-bottom:14px;">Referral List</h3>
           <table class="table">
@@ -1257,6 +1228,7 @@ ${t.desc}</div>
       return `
         <h1 class="page-title">Welcome Back ${name}</h1>
         <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to view your account"}</p>
+
         <div class="stat-card" style="margin-bottom:20px;">
           <h3 style="font-size:0.95rem;margin-bottom:14px;">Account Details</h3>
           <div style="background:var(--bg-elev);padding:16px;border-radius:8px;margin-bottom:20px;">
@@ -1271,6 +1243,7 @@ ${t.desc}</div>
             <a href="#" aria-label="YouTube"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg></a>
           </div>
         </div>
+
         <div class="stat-card">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
             <div>
@@ -1286,10 +1259,15 @@ ${t.desc}</div>
       `;
     }
 
+    // ============================================================
+    // Render
+    // ============================================================
     async function render() {
       updateConnectButton();
 
+      // Fetch live wallet balances (USDT + BCF) for dashboard display
       if (state.account && state.deployed && state.provider) {
+        // Run async without blocking render
         (async () => {
           try {
             const usdtC = getContract("MockUSDT");
@@ -1304,6 +1282,7 @@ ${t.desc}</div>
             if (bcfEl) bcfEl.innerHTML = Number(ethers.formatUnits(bcfBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
           } catch (e) { console.error("Balance fetch error:", e); }
         })();
+        // Also fetch USDT balance for Redeem page
         setTimeout(() => {
           const usdtEl2 = document.getElementById("usdtBalance");
           if (usdtEl2) {
@@ -1330,6 +1309,7 @@ ${t.desc}</div>
       else content = renderDashboard();
       app.innerHTML = content;
 
+      // bind handlers
       const switchLink = document.getElementById("switchNet");
       if (switchLink) switchLink.addEventListener("click", (e) => { e.preventDefault(); switchToBSC(); });
 
@@ -1337,13 +1317,49 @@ ${t.desc}</div>
         btn.addEventListener("click", () => go("invest"));
       });
 
+      // Dashboard — Claim / View Details (Insurance)
       const claimInsDash = document.getElementById("claimIns");
-      if (claimInsDash) claimInsDash.addEventListener("click", () => openInsuranceClaimModal());
+      if (claimInsDash) claimInsDash.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        if (!state.deployed) { alert("Contracts not deployed."); return; }
+        try {
+          claimInsDash.disabled = true;
+          claimInsDash.textContent = "⏳ Loading...";
+          const insC = getContract("Insurance");
+          const invC = getContract("Investment");
+          // Get user's active purchases
+          const ids = await insC.getUserPurchases?.(state.account)?.catch?.(() => null) || await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+          const idList = Array.from(ids || []).map(n => Number(n));
+          const eligible = [];
+          for (const id of idList) {
+            try {
+              const p = await invC.getPurchaseInfo(id);
+              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            } catch (e) {}
+          }
+          claimInsDash.disabled = false;
+          claimInsDash.textContent = "Claim";
+
+          if (eligible.length === 0) {
+            showModal("Capital Protection", `<p style="text-align:center;color:var(--muted);padding:20px 0;">You have no active plans to insure.</p><p style="text-align:center;">Go to <a href="#/invest" style="color:var(--gold);">Invest</a> page to buy a plan first.</p>`);
+            return;
+          }
+
+          const buttons = eligible.map(p => `<button class="btn-gold" style="margin-bottom:8px;" onclick="window._activateIns(${p.id})">Activate Plan #${p.id} (${["A","B","C"][p.planId]}, ${Number(p.amount).toFixed(0)} USDT)</button>`).join("");
+          showModal("Capital Protection — Activate Insurance", `<p style="margin-bottom:14px;">Select a plan to activate insurance:</p>${buttons}`, null, null);
+        } catch (e) {
+          claimInsDash.disabled = false;
+          claimInsDash.textContent = "Claim";
+          alert("Failed: " + (e.reason || e.message));
+        }
+      });
       const viewInsDash = document.getElementById("viewIns");
       if (viewInsDash) viewInsDash.addEventListener("click", () => {
         showInsuranceDetails();
       });
 
+      // Owner — Mint 10,000 USDT (test)
       const mintUsdt = document.getElementById("mintUsdt");
       if (mintUsdt) mintUsdt.addEventListener("click", async () => {
         try {
@@ -1356,6 +1372,7 @@ ${t.desc}</div>
           mintUsdt.textContent = "✓ Minted 10,000 USDT";
           alert("✅ Minted 10,000 USDT!\n\nTx: " + tx.hash + "\n\nYour balance is now updated.");
           setTimeout(() => { mintUsdt.textContent = "Mint 10,000 USDT"; mintUsdt.disabled = false; }, 3000);
+          // Re-fetch balance
           render();
         } catch (e) {
           alert("Mint failed: " + (e.reason || e.message));
@@ -1364,6 +1381,35 @@ ${t.desc}</div>
         }
       });
 
+      // Owner — Fund Insurance Pool
+      const fundIns = document.getElementById("fundIns");
+      if (fundIns) fundIns.addEventListener("click", async () => {
+        try {
+          fundIns.disabled = true;
+          fundIns.textContent = "⏳ Approving USDT...";
+          const usdt = getContract("MockUSDT", true);
+          const ins = getContract("Insurance", true);
+          const amount = ethers.parseUnits("5000", 18);
+          // Approve Insurance contract
+          const curAllow = await usdt.allowance(state.account, CONFIG.addresses.Insurance);
+          if (curAllow < amount) {
+            const txA = await usdt.approve(CONFIG.addresses.Insurance, amount);
+            await txA.wait();
+          }
+          fundIns.textContent = "⏳ Funding...";
+          const tx = await ins.fund(amount);
+          await tx.wait();
+          fundIns.textContent = "✓ Funded 5,000 USDT";
+          alert(`✅ Insurance pool funded with 5,000 USDT!\n\nTx: ${tx.hash}`);
+          setTimeout(() => { fundIns.textContent = "Fund Insurance 5,000 USDT"; fundIns.disabled = false; render(); }, 3000);
+        } catch (e) {
+          alert("Fund failed: " + (e.reason || e.message));
+          fundIns.textContent = "Fund Insurance 5,000 USDT";
+          fundIns.disabled = false;
+        }
+      });
+
+      // Dashboard — Copy Address
       const copyAddrBtn = document.getElementById("copyAddrBtn");
       if (copyAddrBtn) copyAddrBtn.addEventListener("click", async () => {
         try {
@@ -1375,12 +1421,86 @@ ${t.desc}</div>
         }
       });
 
+      // Insurance page — Load policies
+      if (route === "insurance" && state.account && state.deployed) {
+        (async () => {
+          const listBody = document.getElementById("insurancePolicyList");
+          if (!listBody) return;
+          try {
+            const insC = getContract("Insurance");
+            const invC = getContract("Investment");
+            const ids = await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+            const idList = Array.from(ids || []).map(n => Number(n));
+            const rows = [];
+            let totalActive = 0;
+            let firstStart = 0;
+            for (const id of idList) {
+              try {
+                const p = await invC.getPurchaseInfo(id);
+                if (!p[7]) continue;
+                const policy = await insC.getPolicy(id);
+                // struct: (purchaseId, startMonth, amountU, claimed)
+                const activated = policy[0] != 0n;
+                const protection = activated ? await insC.getProtectionAmount(id).catch(() => 0n) : 0n;
+                rows.push({
+                  id, planId: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18),
+                  activated, claimed: policy[3],
+                  protection: ethers.formatUnits(protection, 18),
+                });
+                if (activated && !policy[3]) totalActive++;
+                if (firstStart === 0 && p[3] > 0n) firstStart = Number(p[3]);
+              } catch (e) { console.error("Insurance policy check failed for " + id, e); }
+            }
+            if (rows.length === 0) {
+              listBody.innerHTML = '<p style="color:var(--muted);text-align:center;padding:14px 0;">No plans found. Buy a plan first.</p>';
+            } else {
+              listBody.innerHTML = `
+                <table class="table" style="font-size:0.82rem;">
+                  <thead><tr><th>Plan ID</th><th>Amount</th><th>Status</th><th>Protection</th></tr></thead>
+                  <tbody>
+                    ${rows.map(r => `
+                      <tr>
+                        <td>#${r.id} ${["A","B","C"][r.planId]}</td>
+                        <td>${Number(r.amountStr).toFixed(0)} USDT</td>
+                        <td>${r.activated ? (r.claimed ? '✅ Claimed' : '🟢 Active') : '⚪ Not insured'}</td>
+                        <td style="color:${Number(r.protection) > 0 ? '#10b981' : 'var(--muted)'};">${Number(r.protection).toFixed(2)} USDT</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `;
+            }
+            // Update hero stats
+            const insInvestment = document.getElementById("insInvestment");
+            const insCurrentMonth = document.getElementById("insCurrentMonth");
+            const insProtection = document.getElementById("insProtection");
+            if (insInvestment) {
+              const total = rows.reduce((s, r) => s + Number(r.amountStr), 0);
+              insInvestment.textContent = total.toFixed(0) + " USDT";
+            }
+            if (firstStart > 0) {
+              const monthsElapsed = Math.floor((Date.now()/1000 - firstStart) / (30*24*3600)) + 1;
+              const monthsTotal = [20, 10, 5][rows[0]?.planId] || 20;
+              if (insCurrentMonth) insCurrentMonth.textContent = `${Math.min(monthsElapsed, monthsTotal)}/${monthsTotal} Months`;
+              if (insProtection) {
+                insProtection.textContent = totalActive > 0 ? `🟢 Active (${totalActive})` : "Inactive";
+              }
+            }
+          } catch (e) {
+            console.error("Insurance load error:", e);
+            listBody.innerHTML = `<p style="color:var(--red);text-align:center;padding:14px 0;">❌ Error: ${e.message}</p>`;
+          }
+        })();
+      }
+
+      // Account — Load user investments from chain
       if (route === "account" && state.account && state.deployed && state.provider) {
         (async () => {
           const listBody = document.getElementById("invListBody");
           const totalEl = document.getElementById("acctTotalInvest");
           try {
             const inv = getContract("Investment");
+            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
             const purchaseIds = await Promise.race([
               inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account)),
               new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout (8s)")), 8000))
@@ -1390,13 +1510,13 @@ ${t.desc}</div>
             for (const id of ids) {
               try {
                 const p = await inv.getPurchaseInfo(id);
+                // Convert each BigNumber to a string immediately to avoid Number() overflow
+                const amountStr = ethers.formatUnits(p[2], 18);
                 userPlans.push({
                   id,
                   planId: Number(p[1]),
-                  amount: p[2],
+                  amountStr,
                   start: Number(p[3]),
-                  lastClaim: Number(p[4]),
-                  totalClaimed: p[5],
                   monthsCompleted: Number(p[6]),
                   active: p[7],
                   planName: ["A","B","C"][Number(p[1])] || "?"
@@ -1404,8 +1524,8 @@ ${t.desc}</div>
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
             }
             if (totalEl) {
-              const total = userPlans.reduce((s, p) => s + BigInt(p.amount), 0n);
-              totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              const total = userPlans.reduce((s, p) => s + Number(p.amountStr), 0);
+              totalEl.textContent = total.toLocaleString(undefined, { maximumFractionDigits: 0 });
             }
             if (listBody) {
               if (userPlans.length === 0) {
@@ -1419,7 +1539,7 @@ ${t.desc}</div>
                         <tr>
                           <td>#${p.id}</td>
                           <td>Plan ${p.planName}</td>
-                          <td>${Number(ethers.formatUnits(p.amount, 18)).toFixed(0)} USDT</td>
+                          <td>${Number(p.amountStr).toFixed(0)} USDT</td>
                           <td>${p.monthsCompleted}/${[5,10,20][p.planId] || "?"}</td>
                         </tr>
                       `).join('')}
@@ -1440,6 +1560,7 @@ ${t.desc}</div>
         })();
       }
 
+      // Invest page — plan selector
       document.querySelectorAll(".inv-plan").forEach(card => {
         card.addEventListener("click", () => {
           _selectedPlan = Number(card.dataset.plan);
@@ -1447,14 +1568,9 @@ ${t.desc}</div>
         });
       });
 
+      // Invest page — Amount input live calc
       const planAmount = document.getElementById("planAmount");
       const planReferrer = document.getElementById("planReferrer");
-      if (planReferrer && !planReferrer.value) {
-        try {
-          const savedRef = localStorage.getItem("bcf_referrer");
-          if (savedRef) planReferrer.value = savedRef;
-        } catch (e) {}
-      }
       function recalcInvest() {
         if (!planAmount) return;
         const amt = Number(planAmount.value || 0);
@@ -1474,6 +1590,7 @@ ${t.desc}</div>
         recalcInvest();
       }
 
+      // Invest page — fetch balances
       const invUsdt = document.getElementById("invUsdt");
       const invBcf = document.getElementById("invBcf");
       if (invUsdt && state.deployed && state.provider) {
@@ -1489,6 +1606,7 @@ ${t.desc}</div>
         }).catch(() => { invBcf.innerHTML = "0"; });
       }
 
+      // /invest page — Load active plans count
       const invActive = document.getElementById("invActive");
       if (invActive && state.deployed && state.provider) {
         const invC = getContract("Investment");
@@ -1502,7 +1620,7 @@ ${t.desc}</div>
               return;
             }
             invC.getPurchaseInfo(idList[idx]).then(p => {
-              if (p[7]) active++;
+              if (p[7]) active++; // active is now index 7
               idx++;
               next();
             }).catch(() => { idx++; next(); });
@@ -1511,6 +1629,7 @@ ${t.desc}</div>
         }).catch(() => { invActive.innerHTML = "0"; });
       }
 
+      // Invest page — Buy Plan (auto-approves if needed)
       const buyPlanBtn = document.getElementById("buyPlanBtn");
       if (buyPlanBtn) buyPlanBtn.addEventListener("click", async () => {
         if (!state.account) { await connectWallet(); return; }
@@ -1538,13 +1657,13 @@ ${t.desc}</div>
           buyPlanBtn.textContent = "⏳ Step 2/2: Buying Plan...";
           const inv = getContract("Investment", true);
           const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
-          await tx.wait();
+          const receipt = await tx.wait();
           alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nAmount: ${amt} USDT (5 USDT entry fee refunded to you)\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
           buyPlanBtn.textContent = "✓ Purchased!";
           setTimeout(() => {
             buyPlanBtn.textContent = "💰 Buy Plan";
             buyPlanBtn.disabled = false;
-            render();
+            render(); // refresh balances
           }, 4000);
         } catch (e) {
           alert("Buy failed: " + (e.reason || e.message));
@@ -1553,44 +1672,189 @@ ${t.desc}</div>
         }
       });
 
+      // Insurance page Claim / View Details
       const claimInsPage = document.querySelector(".stat-card #claimIns");
-      if (claimInsPage) claimInsPage.addEventListener("click", () => openInsuranceClaimModal());
+      if (claimInsPage) claimInsPage.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        if (!state.deployed) { alert("Contracts not deployed."); return; }
+        try {
+          claimInsPage.disabled = true;
+          claimInsPage.textContent = "⏳ Loading...";
+          const insC = getContract("Insurance");
+          const invC = getContract("Investment");
+          const ids = await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+          const idList = Array.from(ids || []).map(n => Number(n));
+          const eligible = [];
+          for (const id of idList) {
+            try {
+              const p = await invC.getPurchaseInfo(id);
+              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            } catch (e) {}
+          }
+          claimInsPage.disabled = false;
+          claimInsPage.textContent = "Activate Insurance";
+
+          if (eligible.length === 0) {
+            showModal("Capital Protection", `<p style="text-align:center;color:var(--muted);padding:20px 0;">You have no active plans to insure.</p>`);
+            return;
+          }
+          const buttons = eligible.map(p => `<button class="btn-gold" style="margin-bottom:8px;" onclick="window._activateIns(${p.id})">Activate Plan #${p.id} (${["A","B","C"][p.planId]}, ${Number(p.amount).toFixed(0)} USDT)</button>`).join("");
+          showModal("Capital Protection — Activate Insurance", `<p style="margin-bottom:14px;">Select a plan to activate insurance:</p>${buttons}`, null, null);
+        } catch (e) {
+          claimInsPage.disabled = false;
+          claimInsPage.textContent = "Activate Insurance";
+          alert("Failed: " + (e.reason || e.message));
+        }
+      });
       const viewInsPage = document.querySelector(".stat-card #viewIns");
       if (viewInsPage) viewInsPage.addEventListener("click", () => showInsuranceDetails());
 
+      // Insurance — Claim Protection
+      const claimInsProtect = document.getElementById("claimInsuranceBtn");
+      if (claimInsProtect) claimInsProtect.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        try {
+          claimInsProtect.disabled = true;
+          const insC = getContract("Insurance", true);
+          const ids = await getContract("Investment").getUserPurchases(state.account).catch(() => getContract("Investment").userPurchases(state.account));
+          const idList = Array.from(ids || []).map(n => Number(n));
+          let claimed = false;
+          for (const id of idList) {
+            try {
+              const policy = await insC.getPolicy(id);
+              // struct: (purchaseId, startMonth, amountU, claimed)
+              if (policy[0] != 0n && !policy[3]) {
+                const protection = await insC.getProtectionAmount(id);
+                if (Number(protection) > 0) {
+                  const ok = confirm(`Claim protection for Plan #${id}?\n\nProtection amount: ${ethers.formatUnits(protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
+                  if (ok) {
+                    claimInsProtect.textContent = "⏳ Claiming #" + id + "...";
+                    const tx = await insC.claimInsurance(id);
+                    await tx.wait();
+                    alert(`✅ Claimed protection for Plan #${id}!\nTx: ${tx.hash}`);
+                    claimed = true;
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("claimInsurance error for " + id, e);
+            }
+          }
+          if (!claimed) alert("No claimable insurance policies found. (Note: insurance pool may be empty.)");
+          claimInsProtect.textContent = "🛡 Claim Protection";
+          claimInsProtect.disabled = false;
+          render();
+        } catch (e) {
+          alert("Failed: " + (e.reason || e.message));
+          claimInsProtect.disabled = false;
+        }
+      });
+
+      // Node — View Reward History
       const viewHist = document.getElementById("viewRewardHistory");
       if (viewHist) viewHist.addEventListener("click", () => {
         showModal("Reward History", `
           <p style="text-align:center;color:var(--muted);padding:20px 0;">No reward history yet</p>
         `);
       });
+      // Node — Claim Bonus
       const claimBonus = document.getElementById("claimBonus");
       if (claimBonus) claimBonus.addEventListener("click", () => {
         showModal("Monthly Bonus Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 BCF</strong> as month 1 bonus.</p>");
       });
+      // Node — Tier buy buttons
       document.querySelectorAll(".node-tier-buy").forEach(btn => {
-        btn.addEventListener("click", () => purchaseNodeTier(btn.dataset.tier));
+        btn.addEventListener("click", () => buyNodeShares(Number(btn.dataset.amount), btn));
       });
 
+      // Node — Purchase Node (BCF Partner) section
       const nodeSlider = document.getElementById("nodeAmount");
       if (nodeSlider) {
         nodeSlider.addEventListener("input", (e) => {
           _nodeAmount = Number(e.target.value);
           document.getElementById("nodeAmtLabel").textContent = _nodeAmount + " USDT";
-          document.getElementById("nodeUsdtSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
-          document.getElementById("nodeCreditSplit").textContent = (_nodeAmount * 0.5).toFixed(0);
           document.getElementById("nodeShares").textContent = (_nodeAmount / 100).toFixed(0);
+          document.getElementById("nodeMonthly").textContent = `+${((_nodeAmount/100) * 1000).toLocaleString()} BCF / month`;
         });
-        document.getElementById("purchaseNode").addEventListener("click", () => {
-          showModal("Not Supported On-Chain", `<p style="color:var(--muted);">The deployed Node contract only supports fixed-price tiers (500 / 1,000 / 5,000 / 10,000 USDT) via <code>purchaseNode(tier)</code> — it has no function for a custom USDT amount like ${_nodeAmount} USDT.</p><p style="color:var(--muted);margin-top:10px;">Please pick one of the tier cards above instead.</p>`);
-        });
+        const buyBtn = document.getElementById("purchaseNode");
+        if (buyBtn) buyBtn.addEventListener("click", () => buyNodeShares(_nodeAmount, buyBtn));
       }
 
+      // Node — Claim Reward
+      const claimNodeBtn = document.getElementById("claimNodeReward");
+      if (claimNodeBtn) claimNodeBtn.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        try {
+          claimNodeBtn.disabled = true;
+          claimNodeBtn.textContent = "⏳ Claiming...";
+          const nodeC = getContract("Node", true);
+          const tx = await nodeC.claimNodeReward();
+          const receipt = await tx.wait();
+          alert(`✅ Claimed Node Reward!\n\nTx: ${tx.hash}\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.disabled = false;
+          render();
+        } catch (e) {
+          alert("Claim failed: " + (e.reason || e.message));
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.disabled = false;
+        }
+      });
+
+      // Node — Load user data
+      if (route === "node" && state.account && state.deployed) {
+        (async () => {
+          try {
+            const nodeC = getContract("Node");
+            const info = await Promise.race([
+              nodeC.getNodeInfo(state.account),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
+            ]);
+            // struct: (tier, amountU, shares, joinAt, baseRewardClaimed, bonusClaimed)
+            const tierNames = ["V2", "V3", "V3 Premium", "V4 Premium"];
+            const tierEl = document.getElementById("nodeTier");
+            const invEl = document.getElementById("nodeInvested");
+            const sharesEl = document.getElementById("nodeShares2");
+            if (tierEl) tierEl.textContent = info.shares > 0n ? tierNames[Number(info[0])] : "—";
+            if (invEl) invEl.textContent = Number(ethers.formatUnits(info[1], 18)).toLocaleString();
+            if (sharesEl) sharesEl.textContent = info[2].toString();
+
+            // Calculate claimable
+            if (info.shares > 0n && info.joinAt > 0n) {
+              const monthsPassed = Math.min(11, Math.floor((Date.now()/1000 - Number(info[3])) / (30*24*3600)));
+              if (monthsPassed > 0) {
+                let total = 0;
+                for (let i = 0; i < monthsPassed; i++) {
+                  const bonusBps = i === 0 ? 10000 : Math.max(0, 10000 - (i * 1000));
+                  total += 500 * Number(info[2]) * bonusBps / 10000;
+                }
+                const claimed = Number(ethers.formatUnits(info[4] + info[5], 18));
+                const claimable = Math.max(0, total - claimed);
+                const claimEl = document.getElementById("nodeClaimable");
+                if (claimEl) claimEl.textContent = claimable.toFixed(2);
+              }
+            }
+
+            // USDT balance
+            const usdtC = getContract("MockUSDT");
+            const bal = await usdtC.balanceOf(state.account);
+            const balEl = document.getElementById("nodeBalanceUsdt");
+            if (balEl) balEl.textContent = `Balance: ${Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`;
+          } catch (e) {
+            console.error("Node load error:", e);
+          }
+        })();
+      }
+
+      // Network — Claim Rewards
       const claimRew = document.getElementById("claimRewards");
       if (claimRew) claimRew.addEventListener("click", () => {
         showModal("Rewards Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 USDT</strong> in referral rewards.</p>");
       });
 
+      // Redeem — pct buttons
       document.querySelectorAll("[data-pct]").forEach(btn => {
         btn.addEventListener("click", () => {
           const pct = Number(btn.dataset.pct);
@@ -1606,6 +1870,7 @@ ${t.desc}</div>
         showModal("Withdraw", "<p>Withdraw transaction would be submitted to the smart contract.</p>");
       });
 
+      // Network — copy
       const copyBtn = document.getElementById("copyRefLink");
       if (copyBtn) copyBtn.addEventListener("click", () => {
         const link = state.account ? `https://bcf-dapp.vercel.app/ref/${state.account}` : "https://bcf-dapp.vercel.app/ref/your-address";
@@ -1615,6 +1880,56 @@ ${t.desc}</div>
       });
     }
 
+    // Init
+    window._activateIns = async function(purchaseId) {
+      try {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        const ins = getContract("Insurance", true);
+        const tx = await ins.activateInsurance(purchaseId);
+        await tx.wait();
+        alert(`✅ Insurance activated for Plan #${purchaseId}!\n\nTx: ${tx.hash}\nView: https://testnet.bscscan.com/tx/${tx.hash}\n\nNote: Insurance pool needs to be funded by the owner before you can claim.`);
+        document.getElementById("modal")?.remove();
+        render();
+      } catch (e) {
+        alert("Activation failed: " + (e.reason || e.message));
+      }
+    };
+
+    async function buyNodeShares(amountU, btn) {
+      if (!state.account) { await connectWallet(); return; }
+      if (!state.chainOk) { await switchToBSC(); return; }
+      if (amountU < 100) { alert("Minimum 100 USDT"); return; }
+      const shares = amountU / 100;
+      if (!confirm(`Buy ${shares} node shares for ${amountU} USDT?\n\nThis auto-approves USDT if needed (max 2 wallet confirmations).`)) return;
+      try {
+        btn.disabled = true;
+        const oldText = btn.textContent;
+        btn.textContent = "⏳ Checking approval...";
+        const usdt = getContract("MockUSDT");
+        const amountWei = ethers.parseUnits(String(amountU), 18);
+        const curAllowance = await usdt.allowance(state.account, CONFIG.addresses.Node);
+        if (curAllowance < amountWei) {
+          btn.textContent = "⏳ Approving USDT...";
+          const usdtW = getContract("MockUSDT", true);
+          const txA = await usdtW.approve(CONFIG.addresses.Node, amountWei);
+          await txA.wait();
+        }
+        btn.textContent = "⏳ Buying Shares...";
+        const nodeC = getContract("Node", true);
+        const tx = await nodeC.buyNode(amountWei);
+        await tx.wait();
+        alert(`✅ Bought ${shares} Node Shares!\n\nAmount: ${amountU} USDT\nShares: ${shares}\nTx: ${tx.hash}\n\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+        btn.textContent = "✓ Purchased!";
+        setTimeout(() => { btn.textContent = oldText; btn.disabled = false; render(); }, 3000);
+      } catch (e) {
+        alert("Buy Node failed: " + (e.reason || e.message));
+        btn.disabled = false;
+        btn.textContent = btn.dataset.tier ? `Purchase for ${amountU} USDT` : "💎 Buy Node Shares";
+      }
+    }
+
+    // Init
     document.getElementById("connectBtn").addEventListener("click", connectWallet);
     document.getElementById("menuBtn").addEventListener("click", () => {
       showModal("Menu", `
@@ -1629,16 +1944,16 @@ ${t.desc}</div>
     document.querySelectorAll(".nav-item").forEach(b => {
       b.addEventListener("click", () => go(b.dataset.route));
     });
-    (function handleReferralDeepLink() {
-      const m = location.pathname.match(/^\/ref\/(0x[a-fA-F0-9]{40})/);
-      if (m) {
-        try { localStorage.setItem("bcf_referrer", m[1]); } catch (e) {}
-        history.replaceState(null, "", "/");
-        if (!location.hash) location.hash = "#/invest";
-      }
-    })();
-
     window.addEventListener("hashchange", render);
+
+    // Auto-refresh data every 30s
+    setInterval(() => {
+      if (state.account && state.deployed) {
+        console.log("Auto-refreshing data...");
+        render();
+      }
+    }, 30000);
+
     render();
   </script>
 </body>
