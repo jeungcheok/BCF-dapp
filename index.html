@@ -746,12 +746,12 @@
             ]).then(ids => {
               const idList = Array.from(ids || []).map(n => Number(n));
               const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
-                id, plan: Number(p[1]), amount: p[2], active: p[7]
+                id, plan: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18), active: p[7]
               })).catch(() => null));
               Promise.all(checks).then(plans => {
                 const active = plans.filter(p => p && p.active);
                 totalActivePlans = active.length;
-                const userTotal = active.reduce((s, p) => s + Number(p.amount), 0);
+                const userTotal = active.reduce((s, p) => s + Number(p.amountStr), 0);
                 const el1 = document.getElementById("dashActivePlans");
                 const el2 = document.getElementById("dashMyPurchase");
                 const el3 = document.getElementById("dashMyReturn");
@@ -1377,14 +1377,13 @@ ${t.desc}</div>
             for (const id of ids) {
               try {
                 const p = await inv.getPurchaseInfo(id);
-                // Struct: (buyer, planId, amountU, startTime, lastClaimTime, totalClaimed, monthsCompleted, active)
+                // Convert each BigNumber to a string immediately to avoid Number() overflow
+                const amountStr = ethers.formatUnits(p[2], 18);
                 userPlans.push({
                   id,
                   planId: Number(p[1]),
-                  amount: p[2],
+                  amountStr,
                   start: Number(p[3]),
-                  lastClaim: Number(p[4]),
-                  totalClaimed: p[5],
                   monthsCompleted: Number(p[6]),
                   active: p[7],
                   planName: ["A","B","C"][Number(p[1])] || "?"
@@ -1392,8 +1391,8 @@ ${t.desc}</div>
               } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
             }
             if (totalEl) {
-              const total = userPlans.reduce((s, p) => s + Number(p.amount), 0);
-              totalEl.textContent = Number(ethers.formatUnits(total, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              const total = userPlans.reduce((s, p) => s + Number(p.amountStr), 0);
+              totalEl.textContent = total.toLocaleString(undefined, { maximumFractionDigits: 0 });
             }
             if (listBody) {
               if (userPlans.length === 0) {
@@ -1407,7 +1406,7 @@ ${t.desc}</div>
                         <tr>
                           <td>#${p.id}</td>
                           <td>Plan ${p.planName}</td>
-                          <td>${Number(ethers.formatUnits(p.amount, 18)).toFixed(0)} USDT</td>
+                          <td>${Number(p.amountStr).toFixed(0)} USDT</td>
                           <td>${p.monthsCompleted}/${[5,10,20][p.planId] || "?"}</td>
                         </tr>
                       `).join('')}
@@ -1745,6 +1744,15 @@ ${t.desc}</div>
       b.addEventListener("click", () => go(b.dataset.route));
     });
     window.addEventListener("hashchange", render);
+
+    // Auto-refresh data every 30s
+    setInterval(() => {
+      if (state.account && state.deployed) {
+        console.log("Auto-refreshing data...");
+        render();
+      }
+    }, 30000);
+
     render();
   </script>
 </body>
