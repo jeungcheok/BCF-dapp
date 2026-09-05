@@ -443,7 +443,12 @@
         "function getTotalReturns(address) view returns (uint256)",
       ],
       Node: [
-        "function getUserNode(address) view returns (uint256,uint256,uint8,bool,uint256)",
+        "function getNodeInfo(address) view returns (tuple(uint8 tier,uint256 usdtValue,uint256 shares,uint256 totalBCFBonus,uint256 weeklyRewards,uint256 totalRewardsEarned,uint256 lastRewardTime,uint256 purchaseTime,bool hasMarketingFund,uint256 marketingFundAmount,uint256 mealAllowance))",
+        "function getNodeValue(address) view returns (uint256)",
+        "function getNodeDividends(address) view returns (uint256)",
+        "function estimateWeeklyReward(address) view returns (uint256)",
+        "function getTierConfig(uint8) view returns (tuple(uint256 cost,bool requiresMarketing,uint256 marketingFundAmount,uint256 mealAllowance))",
+        "function purchaseNode(uint8)",
       ],
       Referral: [
         "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
@@ -802,6 +807,74 @@
       }
     }
 
+    // Fixed tier costs the Node contract supports (in whole USDT).
+    // We don't guess the on-chain tier index — we scan getTierConfig() and match by cost.
+    const NODE_TIER_COSTS = { "V2": 500, "V3": 1000, "V3 Premium": 5000, "V4": 10000 };
+
+    async function findNodeTierIndex(costUsdt) {
+      const nodeC = getContract("Node");
+      const targetWei = ethers.parseUnits(String(costUsdt), 18);
+      for (let i = 0; i < 10; i++) {
+        try {
+          const cfg = await nodeC.getTierConfig(i);
+          if (BigInt(cfg.cost) === targetWei) return { index: i, cost: cfg.cost };
+        } catch (e) { /* tier index out of range or reverts — keep scanning */ }
+      }
+      return null;
+    }
+
+    async function purchaseNodeTier(tierName) {
+      if (!state.deployed) { alert("Contracts not yet deployed on testnet."); return; }
+      if (!state.account) { await connectWallet(); return; }
+      const costUsdt = NODE_TIER_COSTS[tierName];
+      if (!costUsdt) { alert("Unknown tier: " + tierName); return; }
+
+      showModal(tierName + " Node", `<p style="text-align:center;color:var(--muted);padding:20px 0;">Looking up this tier on-chain... <span class="loader"></span></p>`, "Close");
+      try {
+        const found = await findNodeTierIndex(costUsdt);
+        const inner = document.getElementById("modalInner");
+        if (!found) {
+          if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">This tier's cost (${costUsdt} USDT) doesn't match any tier configured on the deployed Node contract.</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
+          if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
+          return;
+        }
+        if (inner) {
+          inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--muted);margin-bottom:16px;">Purchase for <strong style="color:var(--gold);">${costUsdt} USDT</strong> (on-chain tier #${found.index}).</p><div class="modal-foot"><button class="btn-gold full" id="confirmNodeBuy">Confirm Purchase</button></div>`;
+          document.getElementById("confirmNodeBuy").onclick = async () => {
+            const btn = document.getElementById("confirmNodeBuy");
+            btn.disabled = true;
+            try {
+              btn.textContent = "⏳ Checking approval...";
+              const usdt = getContract("MockUSDT");
+              const allowance = await usdt.allowance(state.account, CONFIG.addresses.Node);
+              if (allowance < found.cost) {
+                btn.textContent = "⏳ Step 1/2: Approving USDT...";
+                const usdtW = getContract("MockUSDT", true);
+                const txA = await usdtW.approve(CONFIG.addresses.Node, found.cost);
+                await txA.wait();
+              }
+              btn.textContent = "⏳ Step 2/2: Purchasing Node...";
+              const nodeW = getContract("Node", true);
+              const tx = await nodeW.purchaseNode(found.index);
+              await tx.wait();
+              alert("✅ " + tierName + " Node purchased! Tx: " + tx.hash);
+              document.getElementById("modal").classList.remove("open");
+              render();
+            } catch (e) {
+              alert("Purchase failed: " + (e.reason || e.message));
+              btn.disabled = false;
+              btn.textContent = "Confirm Purchase";
+            }
+          };
+        }
+      } catch (e) {
+        console.error("Node tier lookup error:", e);
+        const inner = document.getElementById("modalInner");
+        if (inner) inner.innerHTML = `<h3>${tierName} Node</h3><p style="color:var(--red);text-align:center;padding:20px 0;">Error: ${e.message}</p><div class="modal-foot"><button class="btn-gold full" id="modalClose">Close</button></div>`;
+        if (document.getElementById("modalClose")) document.getElementById("modalClose").onclick = () => document.getElementById("modal").classList.remove("open");
+      }
+    }
+
     // ============================================================
     // Router
     // ============================================================
@@ -1078,7 +1151,7 @@
             <h3 style="font-size:0.95rem;margin-bottom:8px;">${t.name} Node — ${fmt(t.minU, 0)} USDT</h3>
             <div style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;line-height:1.6;white-space:pre-line;">${t.shares} Shares
 ${t.desc}</div>
-            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" data-amount="${t.name === 'V3' ? 1000 : (t.name === 'V3 Premium' ? 4000 : (t.name === 'V4' ? 9000 : t.minU))}" ${!state.deployed ? 'disabled' : ''}>${t.name === 'V3' ? 'Purchased' : 'Purchase for ' + (t.name === 'V3 Premium' ? '4,000' : (t.name === 'V4' ? '9,000' : fmt(t.minU, 0))) + ' USDT'}</button>
+            <button class="btn-gold full node-tier-buy" data-tier="${t.name}" ${!state.deployed ? 'disabled' : ''}>Purchase for ${fmt(t.minU, 0)} USDT</button>
           </div>
         `).join('')}
 
@@ -1655,12 +1728,9 @@ ${t.desc}</div>
       if (claimBonus) claimBonus.addEventListener("click", () => {
         showModal("Monthly Bonus Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 BCF</strong> as month 1 bonus.</p>");
       });
-      // Node — Tier buy buttons
+      // Node — Tier buy buttons (real on-chain purchase)
       document.querySelectorAll(".node-tier-buy").forEach(btn => {
-        btn.addEventListener("click", () => {
-          if (btn.textContent.trim() === "Purchased") return;
-          showModal("Purchase Node", `<p>You are purchasing a <strong>${btn.dataset.tier} Node</strong>.</p><p style='color:var(--muted);margin-top:8px;'>In production, this triggers the smart contract buyNode() call with the matching USDT amount.</p>`);
-        });
+        btn.addEventListener("click", () => purchaseNodeTier(btn.dataset.tier));
       });
 
       // Node — Purchase Node (BCF Partner) section
@@ -1674,7 +1744,7 @@ ${t.desc}</div>
           document.getElementById("nodeShares").textContent = (_nodeAmount / 100).toFixed(0);
         });
         document.getElementById("purchaseNode").addEventListener("click", () => {
-          showModal("BCF Partner Purchase", `<p>You are purchasing <strong>${_nodeAmount} USDT</strong> worth of node shares (${(_nodeAmount/100).toFixed(0)} shares).</p><p style='color:var(--muted);margin-top:8px;'>In production, this calls buyNode() on the Node contract.</p>`);
+          showModal("Not Supported On-Chain", `<p style="color:var(--muted);">The deployed Node contract only supports fixed-price tiers (500 / 1,000 / 5,000 / 10,000 USDT) via <code>purchaseNode(tier)</code> — it has no function for a custom USDT amount like ${_nodeAmount} USDT.</p><p style="color:var(--muted);margin-top:10px;">Please pick one of the tier cards above instead.</p>`);
         });
       }
 
