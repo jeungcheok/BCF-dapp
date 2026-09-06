@@ -211,14 +211,15 @@
       rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
       explorer: "https://testnet.bscscan.com",
       addresses: {
-        BCFToken:   "0xc3Fb054a7854A999Cf1a034B33D3eB795dc40D3d",
-        MockUSDT:   "0x91Cbf7A377c3810720A7265955B3E984197d4aB7",
-        Operations: "0x006e3406b667Fdba452ca65187329b73087F151f",
-        Investment: "0x8404dc9C918c587B40ed88Db95Ae6C7761DBdB66",
-        Node:       "0xDc2bB5fcd40962BafC5ab705cc347D6e19f1b1a8",
-        Referral:   "0x5f1F4Bf82C3b0143189cA19d69D57FfC95f7aF1E",
-        Insurance:  "0x870C440e16e5D6B578f392eaA8cbEffa1eBd8024",
-        Dashboard:  "0xAe984E1e5e1d77B725e0Ad4a9f57D1900aFd8cEb",
+        BCFToken:    "0xe314bf1820441D34A72585E915cE5263b286FE54",
+        MockUSDT:    "0xAc97b930118EC4B22F4Aa5Db6ED783465f9662Fb",
+        Operations:  "0x218937684012b22AD7555013FE44CAc2c95a47f7",
+        Investment:  "0x037DD30127fd6537d7A4E6E9DeD759684Fd3806e",
+        Node:        "0x0A00f972Be5944876812d4F1D05525DcD4c4b4cf",
+        Referral:    "0x2116e4f9dBd572fca47375c3514Fa38228acB60b",
+        Insurance:   "0xA3a07Bd0dc2E137f9c96Fc127EAA57897a40A999",
+        Dashboard:   "0x30C40cd561db4D6a826C8d8B29b94FBc42c0FcBd",
+        PriceOracle: "0xEa174E2440305D0e8E63Dccc4fc5A3D7Bac3de1F",
       },
       plans: [
         { id: 0, name: "Plan A", monthly: 10, months: 20, min: 100,  ins: 70, label: "Auto Selling" },
@@ -375,6 +376,7 @@
         "function getUserOverview(address) view returns (tuple(uint256 bcfBalance,uint256 usdtBalance,uint256 totalPurchased,uint256 totalClaimed,uint256 totalPending,uint256 totalNodeRewards,uint256 totalReferralEarned,uint256 totalInsuranceClaimed,uint256 teamVolume,uint8 referralLevel,uint256 activePurchases))",
         "function getPoolBalance() view returns (uint256)",
         "function getTotalPoolBalance() view returns (uint256)",
+        "function getBCFPrice() view returns (uint256)",
       ],
       Node: [
         "function buyNode(uint256 amountU) returns (uint256)",
@@ -871,6 +873,14 @@
             const el = document.getElementById("dashBcfPool");
             if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
           }).catch(e => console.error("BCF pool error:", e));
+
+          Promise.race([
+            dashC2.getBCFPrice(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
+          ]).then(price => {
+            const el = document.getElementById("dashBcfPrice");
+            if (el) el.textContent = "$" + Number(ethers.formatUnits(price, 18)).toFixed(4);
+          }).catch(e => console.error("BCF price error:", e));
 
           const usdtC = getContract("MockUSDT");
           usdtC.balanceOf(CONFIG.addresses.Insurance).then(bal => {
