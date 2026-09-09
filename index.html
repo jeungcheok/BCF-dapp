@@ -36,6 +36,7 @@
     a { color: var(--gold); text-decoration: none; }
     a:hover { text-decoration: underline; }
     button { font-family: inherit; cursor: pointer; }
+
     .topbar { position: sticky; top: 0; z-index: 50; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 10px 0; }
     .topbar-inner { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
     .logo { display: flex; align-items: center; gap: 10px; }
@@ -48,13 +49,16 @@
     .menu-btn span { display: block; width: 22px; height: 2px; background: var(--fg); border-radius: 1px; }
     .menu-btn span:nth-child(2) { width: 16px; align-self: flex-end; }
     .menu-btn span:nth-child(3) { width: 22px; }
+
     .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px 0; }
+
     .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
     .stat-card { background: var(--bg-card); border: 1px solid var(--gold-border); border-radius: 12px; padding: 14px 18px; }
     .stat-label { color: var(--muted); font-size: 0.85rem; margin-bottom: 6px; }
     .stat-value { font-size: 1.6rem; font-weight: 700; }
     .stat-value .unit { font-size: 0.85rem; color: var(--muted); margin-left: 4px; font-weight: 500; }
     @media (max-width: 768px) { .stat-row { grid-template-columns: 1fr; } }
+
     .hero { background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%); border-radius: 16px; padding: 20px 24px; position: relative; overflow: hidden; margin-bottom: 16px; }
     .hero::after { content: ""; position: absolute; right: -40px; bottom: -40px; width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,0.25), transparent 70%); border-radius: 50%; }
     .hero h2 { font-size: 1.4rem; font-weight: 800; color: #0a0a0a; margin-bottom: 14px; }
@@ -75,6 +79,7 @@
     .btn-purchase:hover { background: var(--gold-3); }
     .btn-purchase:disabled { opacity: 0.5; cursor: not-allowed; }
     @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; } }
+
     .plans-label { color: var(--fg); font-size: 0.95rem; margin: 22px 0 14px; max-width: 720px; }
     .plan-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
     @media (max-width: 900px) { .plan-row { grid-template-columns: 1fr; } }
@@ -87,16 +92,20 @@
     .plan-meta-row .col-value { color: var(--fg); font-size: 0.85rem; font-weight: 600; }
     .plan-amount { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
     .plan-purchase-btn { position: absolute; right: 14px; top: 18px; }
+
     .notice { padding: 16px 20px; border-radius: 12px; margin: 20px 0; font-size: 0.9rem; }
     .notice-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; }
     .notice-info { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0 14px; z-index: 50; }
     .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); background: transparent; border: 0; padding: 6px 12px; font-size: 0.75rem; cursor: pointer; }
     .nav-item.active { color: var(--gold); }
     .nav-item svg { width: 22px; height: 22px; }
     .nav-item:hover { color: var(--gold); }
+
     .page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
     .page-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 22px; }
+
     input, select { width: 100%; padding: 12px 14px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; font-family: inherit; }
     input:focus, select:focus { outline: none; border-color: var(--gold); }
     label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
@@ -107,6 +116,7 @@
     input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; background: var(--bg-card-2); border-radius: 4px; outline: none; }
     input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
     input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid #0a0a0a; }
+
     .tier-progress { display: flex; align-items: center; gap: 4px; margin: 14px 0; }
     .tier-pip { width: 36px; height: 36px; background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--muted); position: relative; font-weight: 700; }
     .tier-pip.completed { background: var(--gold); color: #0a0a0a; border-color: var(--gold); }
@@ -115,6 +125,7 @@
     .tier-line { flex: 1; height: 3px; background: var(--border); }
     .tier-line.done { background: var(--gold); }
     .tier-list-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+
     .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -124,6 +135,7 @@
     .social-icons a { width: 36px; height: 36px; border-radius: 50%; background: var(--bg-card-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--fg); }
     .social-icons a:hover { background: var(--gold); color: #0a0a0a; text-decoration: none; }
     .qr-block { background: white; padding: 12px; border-radius: 12px; display: inline-block; }
+
     .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
     .modal.open { display: flex; }
     .modal-inner { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; }
@@ -178,10 +190,13 @@
       </div>
     </div>
   </div>
+
   <div class="container" id="app"></div>
+
   <div class="modal" id="modal">
     <div class="modal-inner" id="modalInner"></div>
   </div>
+
   <nav class="bottom-nav">
     <button class="nav-item active" data-route="dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
@@ -204,6 +219,7 @@
       Account
     </button>
   </nav>
+
   <script>
     const CONFIG = {
       chainId: 97,
@@ -211,15 +227,15 @@
       rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
       explorer: "https://testnet.bscscan.com",
       addresses: {
-        BCFToken:    "0xe314bf1820441D34A72585E915cE5263b286FE54",
-        MockUSDT:    "0xAc97b930118EC4B22F4Aa5Db6ED783465f9662Fb",
-        Operations:  "0x218937684012b22AD7555013FE44CAc2c95a47f7",
-        Investment:  "0x037DD30127fd6537d7A4E6E9DeD759684Fd3806e",
-        Node:        "0x0A00f972Be5944876812d4F1D05525DcD4c4b4cf",
-        Referral:    "0x2116e4f9dBd572fca47375c3514Fa38228acB60b",
-        Insurance:   "0xA3a07Bd0dc2E137f9c96Fc127EAA57897a40A999",
-        Dashboard:   "0x30C40cd561db4D6a826C8d8B29b94FBc42c0FcBd",
-        PriceOracle: "0xEa174E2440305D0e8E63Dccc4fc5A3D7Bac3de1F",
+        BCFToken:    "0xE78cFAC0A752ba49c727709b93336C3294c4d1dC",
+        MockUSDT:    "0xCd726BFc4a5Eba80977e1AD5379D48D0b3Cc8feF",
+        Operations:  "0xde1214da03695a1EA2F8Eef10312f9e7Ae9292c6",
+        Investment:  "0xb54DE8E5d770D0596B93a049775fc8fcf86CD08f",
+        Node:        "0x324dDbaCA57b2c75B7f9B106046824960308bcC7",
+        Referral:    "0x1Ab4Cdf1AC5C88eCDc6D655A87af68f5535B1FeE",
+        Insurance:   "0x04066Fe779EdDC3B3374D48d7931041d718aA775",
+        Dashboard:   "0x624F3ad7647d29986d825448E54DFd0bbD89A603",
+        PriceOracle: "0xfe57736Eef9F7051F63205c83b7238820537C995",
       },
       plans: [
         { id: 0, name: "Plan A", monthly: 10, months: 20, min: 100,  ins: 70, label: "Auto Selling" },
@@ -1551,7 +1567,7 @@ ${t.desc}</div>
       const invActive = document.getElementById("invActive");
       if (invActive && state.deployed && state.provider) {
         const invC = getContract("Investment");
-        invC.getUserPurchases(state.account).then(ids => {
+        invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account)).then(ids => {
           const idList = Array.from(ids || []).map(n => Number(n));
           let active = 0;
           let idx = 0;
@@ -1561,7 +1577,7 @@ ${t.desc}</div>
               return;
             }
             invC.getPurchaseInfo(idList[idx]).then(p => {
-              if (p.active) active++;
+              if (p[7]) active++;
               idx++;
               next();
             }).catch(() => { idx++; next(); });
@@ -1598,7 +1614,7 @@ ${t.desc}</div>
           const inv = getContract("Investment", true);
           const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
           await tx.wait();
-          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nAmount: ${amt} USDT (5 USDT entry fee refunded to you)\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
+          alert(`✅ Bought Plan ${CONFIG.plans[_selectedPlan].name}!\n\nAmount: ${amt} USDT\nTx: ${tx.hash}\n\nView on BSCScan:\nhttps://testnet.bscscan.com/tx/${tx.hash}`);
           buyPlanBtn.textContent = "✓ Purchased!";
           setTimeout(() => {
             buyPlanBtn.textContent = "💰 Buy Plan";
