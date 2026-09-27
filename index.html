@@ -198,7 +198,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V44</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V45</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -796,19 +796,21 @@
           }).catch(e => console.error("BCF pool error:", e));
 
           // BCF Price (live, from PriceOracle.getPrice())
-          const el = document.getElementById("dashBcfPrice");
-          try {
-            const po = getContract("PriceOracle");
-            const p = await po.getPrice();
-            if (p && Number(p) > 0) {
-              const price = Number(ethers.formatUnits(p, 18));
-              if (el) el.textContent = "$" + price.toFixed(4);
-            } else {
-              if (el) el.textContent = "$0.00";
+          (async () => {
+            const el = document.getElementById("dashBcfPrice");
+            try {
+              const po = getContract("PriceOracle");
+              const p = await po.getPrice();
+              if (p && Number(p) > 0) {
+                const price = Number(ethers.formatUnits(p, 18));
+                if (el) el.textContent = "$" + price.toFixed(4);
+              } else {
+                if (el) el.textContent = "$0.00";
+              }
+            } catch (e) {
+              if (el) el.textContent = "$err";
             }
-          } catch (e) {
-            if (el) el.textContent = "$err";
-          }
+          })();
 
           // Insurance Pool Value (USDT held by Insurance contract)
           const usdtC = getContract("MockUSDT");
@@ -2037,7 +2039,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYyMDM0MjIwMzE5OTQiLCJpc3N1ZWRfYXQiOjE3OTA0ODk4NjYzNTN9._SuOEogwJL-9sp3u1qId2W0U6GuQJNvD_QGiNfI_oxQ",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYyMDg2MzM5MDU0NzMiLCJpc3N1ZWRfYXQiOjE3OTA0OTA0NzA1MDR9.LuQ7WnkSVoYwM7dgZzaO9dA1pGLDLDkcMnKZPkW28T8",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
