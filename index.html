@@ -154,6 +154,13 @@
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
   </style>
+  <style>
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+  </style>
 </head>
 <body>
   <!-- Top bar -->
@@ -198,7 +205,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V47</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V50</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -799,13 +806,23 @@
           setTimeout(() => {
             (async () => {
               const el = document.getElementById("dashBcfPrice");
+              const timeEl = document.getElementById("dashBcfTime");
+              const srcEl = document.getElementById("dashBcfSource");
               if (!el) return;
               try {
                 const po = getContract("PriceOracle");
-                const p = await po.getPrice();
+                const [p, pair] = await Promise.all([
+                  po.getPrice(),
+                  po.pair().catch(() => "0x0000000000000000000000000000000000000000")
+                ]);
                 if (p && Number(p) > 0) {
                   const price = Number(ethers.formatUnits(p, 18));
                   el.textContent = "$" + price.toFixed(4);
+                  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+                  if (srcEl) {
+                    const isPancake = pair !== "0x0000000000000000000000000000000000000000";
+                    srcEl.textContent = isPancake ? "via PancakeSwap" : "via PriceOracle";
+                  }
                 } else {
                   el.textContent = "$0.00";
                 }
@@ -842,9 +859,17 @@
         </div>
 
         <div class="stat-row" style="grid-template-columns:repeat(3,1fr);">
-          <div class="stat-card">
-            <div class="stat-label">BCF Price (live)</div>
+          <div class="stat-card" style="position:relative;">
+            <div class="stat-label" style="display:flex;align-items:center;gap:6px;">
+              BCF Price
+              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;box-shadow:0 0 0 0 rgba(16,185,129,0.7);animation:pulse 1.5s infinite;"></span>
+              <span style="font-size:0.6rem;color:#10b981;font-weight:700;letter-spacing:0.5px;">LIVE</span>
+            </div>
             <div class="stat-value"><span id="dashBcfPrice">⏳</span><span class="unit">USDT</span></div>
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">
+              <span id="dashBcfSource">PriceOracle</span>
+              <span id="dashBcfTime" style="float:right;"></span>
+            </div>
           </div>
           <div class="stat-card">
             <div class="stat-label">BCF Pool (Operations)</div>
@@ -2043,7 +2068,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYyMTQzODMzODY5MjUiLCJpc3N1ZWRfYXQiOjE3OTA0OTIyNTM4NjF9.PiMFlcBTS9ABU5CKx5QF9CQq20i_kALlsqvoNMMQg9A",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYzMTUxMzEzNTkzNTAiLCJpc3N1ZWRfYXQiOjE3OTA1MTY3ODQyOTZ9.aKdzyY1YE3ZocFY4-5Dey4NcsesQCDNMiPOBmp-xHYs",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
