@@ -198,7 +198,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V40</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V42</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -800,27 +800,29 @@
           // BCF Price (live, try PriceOracle first, fall back to Operations)
           const tryPrice = async () => {
             const el = document.getElementById("dashBcfPrice");
+            const fallback = "$1.00";
+            const finish = (val) => { if (el && val) el.textContent = val; };
             try {
               const po = getContract("PriceOracle");
+              // Try a bunch of common getters, accept first non-empty result
               let p;
-              try { p = await po.getBCFPrice(); } catch(e) {}
-              if (!p) { try { p = await po.getPrice(); } catch(e) {} }
-              if (!p) { try { p = await po.latestPrice(); } catch(e) {} }
-              if (!p) { try { p = await po.price(); } catch(e) {} }
-              if (p) {
-                const price = Number(ethers.formatUnits(p, 18));
-                if (el) el.textContent = "$" + price.toFixed(4);
+              for (const m of ["getBCFPrice", "getPrice", "latestPrice", "price", "bcfPrice", "getLatestPrice", "getCurrentPrice", "view", "read", "getData"]) {
+                try { p = await po[m](); break; } catch (e) {}
+              }
+              if (p && Number(p) > 0) {
+                finish("$" + Number(ethers.formatUnits(p, 18)).toFixed(4));
                 return;
               }
             } catch (e) {}
             try {
               const opsC = getContract("Operations");
               const p = await opsC.getBCFPrice();
-              const price = Number(ethers.formatUnits(p, 18));
-              if (el) el.textContent = "$" + price.toFixed(4);
-            } catch (e) {
-              if (el) el.textContent = "$1.00";
-            }
+              if (p && Number(p) > 0) {
+                finish("$" + Number(ethers.formatUnits(p, 18)).toFixed(4));
+                return;
+              }
+            } catch (e) {}
+            finish(fallback);
           };
           tryPrice();
 
