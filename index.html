@@ -198,7 +198,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V46</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V47</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -760,7 +760,7 @@
           if (state.account) {
             // Direct lookup: getUserPurchases(address) returns array of purchase IDs
             Promise.race([
-              invContract.getUserPurchases(state.account).catch(() => invContract.userPurchases(state.account)),
+              invContract.getUserPurchases(state.account),
               new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout")), 8000))
             ]).then(ids => {
               const idList = Array.from(ids || []).map(n => Number(n));
@@ -775,8 +775,8 @@
                 const el2 = document.getElementById("dashMyPurchase");
                 const el3 = document.getElementById("dashMyReturn");
                 if (el1) el1.textContent = totalActivePlans;
-                if (el2) el2.textContent = Number(ethers.formatUnits(userTotal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                if (el3) el3.textContent = Number(ethers.formatUnits(userTotal * 0.15, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
               });
             }).catch(e => {
               console.error("Dashboard user purchases error:", e);
@@ -1370,7 +1370,7 @@ ${t.desc}</div>
           const insC = getContract("Insurance");
           const invC = getContract("Investment");
           // Get user's active purchases
-          const ids = await insC.getUserPurchases?.(state.account)?.catch?.(() => null) || await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+          const ids = await insC.getUserPurchases?.(state.account)?.catch?.(() => null) || await invC.getUserPurchases(state.account);
           const idList = Array.from(ids || []).map(n => Number(n));
           const eligible = [];
           for (const id of idList) {
@@ -1503,7 +1503,7 @@ ${t.desc}</div>
           try {
             const insC = getContract("Insurance");
             const invC = getContract("Investment");
-            const ids = await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+            const ids = await invC.getUserPurchases(state.account);
             const idList = Array.from(ids || []).map(n => Number(n));
             const rows = [];
             let totalActive = 0;
@@ -1576,7 +1576,7 @@ ${t.desc}</div>
             const inv = getContract("Investment");
             // Direct lookup: getUserPurchases(address) returns array of purchase IDs
             const purchaseIds = await Promise.race([
-              inv.getUserPurchases(state.account).catch(() => inv.userPurchases(state.account)),
+              inv.getUserPurchases(state.account),
               new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout (8s)")), 8000))
             ]);
             const ids = Array.from(purchaseIds || []).map(n => Number(n));
@@ -1684,7 +1684,7 @@ ${t.desc}</div>
       const invActive = document.getElementById("invActive");
       if (invActive && state.deployed && state.provider) {
         const invC = getContract("Investment");
-        invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account)).then(ids => {
+        invC.getUserPurchases(state.account).then(ids => {
           const idList = Array.from(ids || []).map(n => Number(n));
           let active = 0;
           let idx = 0;
@@ -1767,7 +1767,7 @@ ${t.desc}</div>
           claimInsPage.textContent = "⏳ Loading...";
           const insC = getContract("Insurance");
           const invC = getContract("Investment");
-          const ids = await invC.getUserPurchases(state.account).catch(() => invC.userPurchases(state.account));
+          const ids = await invC.getUserPurchases(state.account);
           const idList = Array.from(ids || []).map(n => Number(n));
           const eligible = [];
           for (const id of idList) {
@@ -2043,7 +2043,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYyMDk1ODY5MDU0MzkiLCJpc3N1ZWRfYXQiOjE3OTA0OTExODg5NzR9.dzAy7TzIol1sdkdRtdMcSyPXGs1SaEcaCgzIEMWtR6c",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYyMTQzODMzODY5MjUiLCJpc3N1ZWRfYXQiOjE3OTA0OTIyNTM4NjF9.PiMFlcBTS9ABU5CKx5QF9CQq20i_kALlsqvoNMMQg9A",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
