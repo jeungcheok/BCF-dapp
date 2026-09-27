@@ -205,7 +205,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V50</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V51</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -504,9 +504,19 @@
     // Wallet
     // ============================================================
     async function connectWallet() {
-      if (!window.ethereum) { alert("Please install MetaMask: https://metamask.io/download/"); return; }
+      console.log("Connect wallet clicked");
+      console.log("window.ethereum:", typeof window.ethereum, !!window.ethereum);
+      if (!window.ethereum) {
+        const msg = "No wallet detected. Please install:\n" +
+          "• MetaMask: https://metamask.io/download/\n" +
+          "• Trust Wallet\n• Coinbase Wallet\n\n" +
+          "Make sure you're NOT using a private/incognito window.";
+        alert(msg);
+        return;
+      }
       try {
         const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        console.log("Got accounts:", accounts);
         state.account = accounts[0];
         state.provider = new ethers.BrowserProvider(window.ethereum);
         state.signer = await state.provider.getSigner();
@@ -516,7 +526,10 @@
         render();
         window.ethereum.on("accountsChanged", () => location.reload());
         window.ethereum.on("chainChanged", () => location.reload());
-      } catch (e) { console.error(e); alert("Connection rejected: " + e.message); }
+      } catch (e) {
+        console.error("Connect error:", e);
+        alert("Connection rejected: " + (e.message || e));
+      }
     }
 
     async function checkNetwork() {
@@ -2039,7 +2052,13 @@ ${t.desc}</div>
     }
 
     // Init
-    document.getElementById("connectBtn").addEventListener("click", connectWallet);
+    const _cb = document.getElementById("connectBtn");
+    if (_cb) {
+      _cb.addEventListener("click", connectWallet);
+      console.log("Connect button handler attached, btn=", _cb);
+    } else {
+      console.error("Connect button NOT FOUND in DOM!");
+    }
     document.getElementById("menuBtn").addEventListener("click", () => {
       showModal("Menu", `
         <p style='color:var(--muted);margin-bottom:12px;'>Quick navigation</p>
@@ -2068,7 +2087,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYzMTUxMzEzNTkzNTAiLCJpc3N1ZWRfYXQiOjE3OTA1MTY3ODQyOTZ9.aKdzyY1YE3ZocFY4-5Dey4NcsesQCDNMiPOBmp-xHYs",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYzMTg2MjIyOTAxMTIiLCJpc3N1ZWRfYXQiOjE3OTA1MTczMDc0MDB9.rdrz-_E44X6foGe4k2HJfmkk8NzYMSxTfHWGutkwK7E",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
