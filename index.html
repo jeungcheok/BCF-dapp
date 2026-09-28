@@ -205,7 +205,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V51</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V54</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -254,15 +254,15 @@
       rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
       explorer: "https://testnet.bscscan.com",
       addresses: {
-        BCFToken:    "0x83EB7E1deA3c2c8BD0499c98BB1afadAE4177e2E",
-        MockUSDT:    "0x832931f0A69F334F87c41A964E3Ed713250DB5e8",
-        Operations:  "0xBB2db9Ff964228971f50087B552cB2f7C1585AA4",
-        Investment:  "0x65e44BC4f0c0bE1D1197f28EAEe542081266966B",
-        Node:        "0x55BF7AD8Ebe995BC721670470319ABCa113760fb",
-        Referral:    "0xBF9BD0bED81470f502aaa6Bf888339B13BA9b10c",
-        Insurance:   "0x8D9ffB502cd9839215d316C494Da2cea6b7e0d56",
-        Dashboard:   "0x1AaEE766358f884cD9704484b60382945C80109c",
-        PriceOracle: "0xA9A95b36647031bEA9049293FF5A748F4aa8eae0",
+        BCFToken:    "0xDF240F95B78CB71e01Bb986d59d6a1aC26Fd153D",
+        MockUSDT:    "0xaF6463ceB67D0429B772cBa197bcD32b28c5f0C8",
+        Operations:  "0x89c07428e233695A7327A09ABa1abdd04395029c",
+        Investment:  "0x2707C484062b8B6208e30A22c68bdf3B10475BEd",
+        Node:        "0x6f5318930e4AB1A56AAA4a47E806Adec96bCf2BE",
+        Referral:    "0x7a05cdBB394020f38F46eEFC1dC646753eE3CEBa",
+        Insurance:   "0xabA0434c0F4510f5CA5376e3CFDC9C0B4deA1C53",
+        Dashboard:   "0x28921661Aa46779Cb72ee3a81c12E0479E7e0Cf3",
+        PriceOracle: "0xE64B01e52E8Ea13C06e920B51364ba80940137C1",
       },
       plans: [
         { id: 0, name: "Plan A", monthly: 10, months: 20, min: 100,  ins: 70, label: "Auto Selling" },
@@ -449,6 +449,9 @@
         "function getBCFPrice() view returns (uint256)",
         "function setBCFPrice(uint256)",
         "function buyBCFTo(address,uint256) returns (uint256)",
+        "function redeemBCF(uint256,uint256) returns (uint256)",
+        "function fundUSDTPool(uint256)",
+        "function getUSDTPoolBalance() view returns (uint256)",
       ],
       PriceOracle: [
         "function getPrice() view returns (uint256)",
@@ -556,6 +559,27 @@
           });
           location.reload();
         }
+      }
+    }
+
+    async function updateRedeemEstimate() {
+      const bcfInp = document.getElementById("redeemBcfAmount");
+      const receiveEl = document.getElementById("redeemReceive");
+      const priceEl = document.getElementById("redeemPrice");
+      const rateEl = document.getElementById("redeemRate");
+      if (!bcfInp || !receiveEl) return;
+      const amt = Number(bcfInp.value || 0);
+      if (amt <= 0) { receiveEl.textContent = "0 USDT"; return; }
+      try {
+        const oracle = getContract("PriceOracle");
+        const p = await oracle.getPrice();
+        const price = Number(ethers.formatUnits(p, 18));
+        const usdtOut = amt * price;
+        receiveEl.textContent = usdtOut.toFixed(4) + " USDT";
+        if (priceEl) priceEl.textContent = "$" + price.toFixed(4);
+        if (rateEl) rateEl.textContent = "$" + price.toFixed(4);
+      } catch (e) {
+        console.error("updateRedeemEstimate error:", e);
       }
     }
 
@@ -1170,40 +1194,67 @@ ${t.desc}</div>
 
     function renderRedeem() {
       return `
-        <h1 class="page-title">Withdraw your USDT</h1>
-        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)}` : "Connect wallet to withdraw"}</p>
+        <h1 class="page-title">Redeem BCF → USDT</h1>
+        <p class="page-sub">${state.account ? `Connected: ${addrShort(state.account)} · 1 BCF = <span id="redeemRate">...</span> USDT` : "Connect wallet to redeem"}</p>
 
         <div class="stat-card" style="max-width:700px;">
-          <h3 style="font-size:0.95rem;margin-bottom:16px;">Your USDT balance <span style="color:var(--gold);font-weight:700;font-size:1.1rem;" id="usdtBalance">${state.account ? '<span class="loader"></span>' : '$0.00'}</span></h3>
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Your Balances</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+            <div style="background:var(--bg-elev);padding:12px;border-radius:8px;">
+              <div style="font-size:0.75rem;color:var(--muted);">USDT Balance</div>
+              <div style="font-size:1.2rem;font-weight:700;color:var(--gold);" id="redeemUsdtBal">—</div>
+            </div>
+            <div style="background:var(--bg-elev);padding:12px;border-radius:8px;">
+              <div style="font-size:0.75rem;color:var(--muted);">BCF Balance</div>
+              <div style="font-size:1.2rem;font-weight:700;color:#fbbf24;" id="redeemBcfBal">—</div>
+            </div>
+          </div>
 
           <div class="form-row">
-            <label>You Send</label>
+            <label>You Send (BCF)</label>
             <div style="display:flex;align-items:center;gap:10px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
-              <span style="color:#26a17b;font-size:1.4rem;">₮</span>
-              <input type="number" id="withdrawAmount" value="0" style="background:transparent;border:0;padding:0;font-size:1.1rem;" />
+              <span style="color:#fbbf24;font-size:1.4rem;">₿</span>
+              <input type="number" id="redeemBcfAmount" value="0" min="0" step="1" style="background:transparent;border:0;padding:0;font-size:1.1rem;flex:1;" />
             </div>
             <div class="pct-row">
-              <button class="pct-btn" data-pct="25">25%</button>
-              <button class="pct-btn" data-pct="50">50%</button>
-              <button class="pct-btn" data-pct="75">75%</button>
-              <button class="pct-btn" data-pct="100">MAX</button>
+              <button class="pct-btn" data-redeem-pct="25">25%</button>
+              <button class="pct-btn" data-redeem-pct="50">50%</button>
+              <button class="pct-btn" data-redeem-pct="75">75%</button>
+              <button class="pct-btn" data-redeem-pct="100">MAX</button>
             </div>
           </div>
 
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px;">
-            <span style="color:var(--muted);font-size:0.85rem;">Slippage</span>
-            <span style="background:var(--bg-card-2);padding:4px 10px;border-radius:6px;font-size:0.85rem;">0.6%</span>
-          </div>
-
-          <button class="btn-gold full" id="withdrawBtn" ${!state.deployed ? 'disabled' : ''}>Withdraw USDT</button>
-
-          <div style="margin-top:20px;">
-            <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Fee Distribution</h4>
-            <div style="font-size:0.85rem;color:var(--muted);line-height:1.8;">
-              <div>6% to providers: <span style="color:var(--fg);">0 USDT</span></div>
-              <div>4% to nodes: <span style="color:var(--fg);">0 USDT</span></div>
+          <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">Current BCF Price:</span>
+              <span style="color:var(--gold);font-weight:700;" id="redeemPrice">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">You Receive (estimated):</span>
+              <span style="color:#10b981;font-weight:700;" id="redeemReceive">0 USDT</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);font-size:0.75rem;color:var(--muted);">
+              <span>Slippage: 5% (minimum output)</span>
             </div>
           </div>
+
+          <button class="btn-purchase full" id="redeemBtn" style="position:static;width:100%;padding:14px;" ${!state.account ? 'disabled' : ''}>🔄 Redeem BCF for USDT</button>
+
+          <div style="margin-top:18px;font-size:0.75rem;color:var(--muted);line-height:1.6;">
+            ℹ️ This swaps your BCF for USDT at the current BCF Price (from PriceOracle → PancakeSwap).
+            You need to approve the Operations contract to spend your BCF first.
+          </div>
+        </div>
+
+        <div class="stat-card" style="margin-top:16px;">
+          <h3 style="font-size:0.95rem;margin-bottom:14px;">Operations USDT Pool</h3>
+          <p style="color:var(--muted);font-size:0.85rem;">
+            The Operations contract holds USDT that backs redemptions.
+            Pool balance: <strong style="color:var(--gold);"><span id="redeemPoolBal">—</span> USDT</strong>
+          </p>
+          <p style="color:var(--muted);font-size:0.8rem;margin-top:8px;">
+            💡 Owner: <code>Operations.fundUSDTPool(amount)</code> adds more USDT to the pool.
+          </p>
         </div>
       `;
     }
@@ -1605,6 +1656,40 @@ ${t.desc}</div>
         })();
       }
 
+      // Redeem page — Load balances + price
+      if (route === "redeem" && state.account && state.deployed) {
+        (async () => {
+          try {
+            const usdtC = getContract("MockUSDT");
+            const bcfC = getContract("BCFToken");
+            const opsC = getContract("Operations");
+            const oracleC = getContract("PriceOracle");
+            const [usdtBal, bcfBal, poolBal, priceWei] = await Promise.all([
+              usdtC.balanceOf(state.account).catch(() => 0n),
+              bcfC.balanceOf(state.account).catch(() => 0n),
+              opsC.getUSDTPoolBalance().catch(() => 0n),
+              oracleC.getPrice().catch(() => 0n)
+            ]);
+            const usdtEl = document.getElementById("redeemUsdtBal");
+            const bcfEl = document.getElementById("redeemBcfBal");
+            const poolEl = document.getElementById("redeemPoolBal");
+            const priceEl = document.getElementById("redeemPrice");
+            const rateEl = document.getElementById("redeemRate");
+            if (usdtEl) usdtEl.textContent = Number(ethers.formatUnits(usdtBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 }) + " USDT";
+            if (bcfEl) bcfEl.textContent = Number(ethers.formatUnits(bcfBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 }) + " BCF";
+            if (poolEl) poolEl.textContent = Number(ethers.formatUnits(poolBal, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            if (priceWei > 0n) {
+              const price = Number(ethers.formatUnits(priceWei, 18));
+              if (priceEl) priceEl.textContent = "$" + price.toFixed(4);
+              if (rateEl) rateEl.textContent = "$" + price.toFixed(4);
+            }
+            updateRedeemEstimate();
+          } catch (e) {
+            console.error("Redeem load error:", e);
+          }
+        })();
+      }
+
       // Account — Load user investments from chain
       if (route === "account" && state.account && state.deployed && state.provider) {
         (async () => {
@@ -1976,20 +2061,64 @@ ${t.desc}</div>
         showModal("Rewards Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 USDT</strong> in referral rewards.</p>");
       });
 
-      // Redeem — pct buttons
-      document.querySelectorAll("[data-pct]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const pct = Number(btn.dataset.pct);
-          const amt = (74.96 * pct / 100).toFixed(2);
-          const inp = document.getElementById("withdrawAmount");
-          if (inp) inp.value = amt;
-          document.querySelectorAll("[data-pct]").forEach(b => b.classList.remove("active"));
-          btn.classList.add("active");
+      // Redeem — pct buttons + real redeem
+      document.querySelectorAll("[data-redeem-pct]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!state.account || !state.deployed) return;
+          const pct = Number(btn.dataset.redeemPct);
+          try {
+            const bcfC = getContract("BCFToken");
+            const bal = await bcfC.balanceOf(state.account);
+            const amt = (Number(ethers.formatUnits(bal, 18)) * pct / 100).toFixed(2);
+            const inp = document.getElementById("redeemBcfAmount");
+            if (inp) inp.value = amt;
+            document.querySelectorAll("[data-redeem-pct]").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            updateRedeemEstimate();
+          } catch (e) { console.error(e); }
         });
       });
-      const wdraw = document.getElementById("withdrawBtn");
-      if (wdraw) wdraw.addEventListener("click", () => {
-        showModal("Withdraw", "<p>Withdraw transaction would be submitted to the smart contract.</p>");
+      const redeemInp = document.getElementById("redeemBcfAmount");
+      if (redeemInp) redeemInp.addEventListener("input", updateRedeemEstimate);
+      const redeemBtn = document.getElementById("redeemBtn");
+      if (redeemBtn) redeemBtn.addEventListener("click", async () => {
+        if (!state.account) { await connectWallet(); return; }
+        if (!state.chainOk) { await switchToBSC(); return; }
+        const bcfAmount = Number(redeemInp.value || 0);
+        if (bcfAmount <= 0) { alert("Enter BCF amount"); return; }
+        const bcfWei = ethers.parseUnits(String(bcfAmount), 18);
+        try {
+          redeemBtn.disabled = true;
+          redeemBtn.textContent = "⏳ Step 1/3: Approving BCF...";
+          const bcfC = getContract("BCFToken", true);
+          const opsC = getContract("Operations", true);
+          // Check allowance
+          const cur = await bcfC.allowance(state.account, CONFIG.addresses.Operations);
+          if (cur < bcfWei) {
+            const txA = await bcfC.approve(CONFIG.addresses.Operations, bcfWei);
+            await txA.wait();
+            alert(`✅ BCF approved!\n\nTx: ${txA.hash}`);
+          }
+          redeemBtn.textContent = "⏳ Step 2/3: Reading price...";
+          // Get current price for minUsdtOut
+          const oracleC = getContract("PriceOracle");
+          const price = await oracleC.getPrice();
+          // expected usdt = bcfAmount * price / 1e18
+          // minUsdtOut = expected * 0.95 (5% slippage)
+          const expectedUsdt = (bcfAmount * Number(ethers.formatUnits(price, 18))).toFixed(2);
+          const minUsdtOut = ethers.parseUnits((expectedUsdt * 0.95).toFixed(2), 18);
+          redeemBtn.textContent = "⏳ Step 3/3: Redeeming...";
+          const tx = await opsC.redeemBCF(bcfWei, minUsdtOut);
+          await tx.wait();
+          alert(`✅ Redeemed ${bcfAmount} BCF for ~${expectedUsdt} USDT!\n\nTx: ${tx.hash}\n\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+          redeemBtn.textContent = "🔄 Redeem BCF for USDT";
+          redeemBtn.disabled = false;
+          render();
+        } catch (e) {
+          alert("Redeem failed: " + (e.reason || e.message));
+          redeemBtn.textContent = "🔄 Redeem BCF for USDT";
+          redeemBtn.disabled = false;
+        }
       });
 
       // Network — copy
@@ -2087,7 +2216,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDYzMTg2MjIyOTAxMTIiLCJpc3N1ZWRfYXQiOjE3OTA1MTczMDc0MDB9.rdrz-_E44X6foGe4k2HJfmkk8NzYMSxTfHWGutkwK7E",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2NzYwMTcyOTk4MTkiLCJpc3N1ZWRfYXQiOjE3OTA2MDUwOTk0NTJ9.pZdo4Qe-6pAZK40JYpV2TNYgyYvx9KgNldNv_OI4EUM",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
