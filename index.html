@@ -233,7 +233,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V57</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V59</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -450,6 +450,10 @@
         "function symbol() view returns (string)",
         "function totalSupply() view returns (uint256)",
         "function balanceOf(address) view returns (uint256)",
+        "function allowance(address,address) view returns (uint256)",
+        "function approve(address,uint256) returns (bool)",
+        "function transfer(address,uint256) returns (bool)",
+        "function decimals() view returns (uint8)",
       ],
       MockUSDT: [
         "function balanceOf(address) view returns (uint256)",
@@ -937,121 +941,118 @@
     // ============================================================
     // Pages
     // ============================================================
+    // Dashboard data loader — called AFTER HTML is in the DOM
+    async function loadDashboardData() {
+      if (!state.deployed || !state.account) return;
+      try {
+              const sel = {
+                getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
+                getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
+                getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
+                getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
+                pair:            "0x" + ethers.id("pair()").slice(2, 10),
+                balanceOf:       "0x" + ethers.id("balanceOf(address)").slice(2, 10),
+              };
+              const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+              const padUint = (n) => n.toString(16).padStart(64, "0");
+
+              const first = await batchCalls([
+                { to: CONFIG.addresses.Investment, data: sel.getUserPurchases + padAddr(state.account) },
+                { to: CONFIG.addresses.Dashboard,  data: sel.getPoolBalance },
+                { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
+                { to: CONFIG.addresses.PriceOracle, data: sel.pair },
+                { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(CONFIG.addresses.Insurance) },
+                { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(state.account) },
+                { to: CONFIG.addresses.BCFToken,   data: sel.balanceOf + padAddr(state.account) },
+              ]);
+
+              // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
+              const invIface = new ethers.Interface(ABIS.Investment);
+              const poIface  = new ethers.Interface(ABIS.PriceOracle);
+              const usdtIface = new ethers.Interface(ABIS.MockUSDT);
+
+              // Stats that don't need purchase details
+              if (first[1]) {
+                const el = document.getElementById("dashBcfPool");
+                const bal = new ethers.Interface(ABIS.Dashboard).decodeFunctionResult("getPoolBalance()", first[1])[0];
+                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              }
+              if (first[2]) {
+                const el = document.getElementById("dashBcfPrice");
+                const timeEl = document.getElementById("dashBcfTime");
+                const srcEl = document.getElementById("dashBcfSource");
+                const p = poIface.decodeFunctionResult("getPrice()", first[2])[0];
+                if (el && p > 0n) {
+                  el.textContent = "$" + Number(ethers.formatUnits(p, 18)).toFixed(4);
+                  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+                  if (srcEl) {
+                    const pairAddr = first[3] ? poIface.decodeFunctionResult("pair()", first[3])[0] : ethers.ZeroAddress;
+                    srcEl.textContent = (pairAddr && pairAddr !== ethers.ZeroAddress) ? "via PancakeSwap" : "via PriceOracle";
+                  }
+                }
+              }
+              if (first[4]) {
+                const el = document.getElementById("dashInsPool");
+                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[4])[0];
+                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+              }
+              // Wallet balances (same batch)
+              if (first[5]) {
+                const el = document.getElementById("dashUsdtBal");
+                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[5])[0];
+                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT";
+              }
+              if (first[6]) {
+                const el = document.getElementById("dashBcfBal");
+                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[6])[0];
+                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF";
+              }
+
+              // Purchases: second batched round-trip
+              if (first[0]) {
+                const idList = invIface.decodeFunctionResult("getUserPurchases(address)", first[0]).map(n => Number(n));
+                if (idList.length > 0) {
+                  const results = await batchCalls(idList.map(id => ({
+                    to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(id),
+                  })));
+                  const plans = results.map((r, i) => {
+                    if (!r) return null;
+                    try {
+                      const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+                      return { id: idList[i], amount: d[2], active: d[7] };
+                    } catch { return null; }
+                  }).filter(Boolean);
+                  const active = plans.filter(p => p.active);
+                  const userTotal = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
+                  const el1 = document.getElementById("dashActivePlans");
+                  const el2 = document.getElementById("dashMyPurchase");
+                  const el3 = document.getElementById("dashMyReturn");
+                  if (el1) el1.textContent = active.length;
+                  if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                  if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                } else {
+                  const el1 = document.getElementById("dashActivePlans");
+                  const el2 = document.getElementById("dashMyPurchase");
+                  const el3 = document.getElementById("dashMyReturn");
+                  if (el1) el1.textContent = "0";
+                  if (el2) el2.textContent = "0";
+                  if (el3) el3.textContent = "0";
+                }
+              }
+      } catch (e) {
+        console.error("Dashboard batch error:", e);
+        ["dashMyPurchase", "dashMyReturn", "dashBcfPrice"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.textContent === "\u23f3") el.textContent = "err";
+        });
+      }
+    }
     function renderDashboard() {
       let totalPurchase = 0, totalReturn = 0, networkPerf = 0;
       let bcfPrice = 0, poolVal = 0, insPoolVal = 0;
       let inv = 0, currentMonth = "0/0 Months", protection = "Inactive";
       let totalActivePlans = 0;
 
-      if (state.deployed) {
-        if (state.account) {
-          // FAST PATH: one batched round-trip for everything on this page
-          (async () => {
-              try {
-                const sel = {
-                  getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
-                  getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
-                  getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
-                  getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
-                  pair:            "0x" + ethers.id("pair()").slice(2, 10),
-                  balanceOf:       "0x" + ethers.id("balanceOf(address)").slice(2, 10),
-                };
-                const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
-                const padUint = (n) => n.toString(16).padStart(64, "0");
-
-                const first = await batchCalls([
-                  { to: CONFIG.addresses.Investment, data: sel.getUserPurchases + padAddr(state.account) },
-                  { to: CONFIG.addresses.Dashboard,  data: sel.getPoolBalance },
-                  { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
-                  { to: CONFIG.addresses.PriceOracle, data: sel.pair },
-                  { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(CONFIG.addresses.Insurance) },
-                  { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(state.account) },
-                  { to: CONFIG.addresses.BCFToken,   data: sel.balanceOf + padAddr(state.account) },
-                ]);
-
-                // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
-                const invIface = new ethers.Interface(ABIS.Investment);
-                const poIface  = new ethers.Interface(ABIS.PriceOracle);
-                const usdtIface = new ethers.Interface(ABIS.MockUSDT);
-
-                // Stats that don't need purchase details
-                if (first[1]) {
-                  const el = document.getElementById("dashBcfPool");
-                  const bal = new ethers.Interface(ABIS.Dashboard).decodeFunctionResult("getPoolBalance()", first[1])[0];
-                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                }
-                if (first[2]) {
-                  const el = document.getElementById("dashBcfPrice");
-                  const timeEl = document.getElementById("dashBcfTime");
-                  const srcEl = document.getElementById("dashBcfSource");
-                  const p = poIface.decodeFunctionResult("getPrice()", first[2])[0];
-                  if (el && p > 0n) {
-                    el.textContent = "$" + Number(ethers.formatUnits(p, 18)).toFixed(4);
-                    if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
-                    if (srcEl) {
-                      const pairAddr = first[3] ? poIface.decodeFunctionResult("pair()", first[3])[0] : ethers.ZeroAddress;
-                      srcEl.textContent = (pairAddr && pairAddr !== ethers.ZeroAddress) ? "via PancakeSwap" : "via PriceOracle";
-                    }
-                  }
-                }
-                if (first[4]) {
-                  const el = document.getElementById("dashInsPool");
-                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[4])[0];
-                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                }
-                // Wallet balances (same batch)
-                if (first[5]) {
-                  const el = document.getElementById("dashUsdtBal");
-                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[5])[0];
-                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT";
-                }
-                if (first[6]) {
-                  const el = document.getElementById("dashBcfBal");
-                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[6])[0];
-                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF";
-                }
-
-                // Purchases: second batched round-trip
-                if (first[0]) {
-                  const idList = invIface.decodeFunctionResult("getUserPurchases(address)", first[0]).map(n => Number(n));
-                  if (idList.length > 0) {
-                    const results = await batchCalls(idList.map(id => ({
-                      to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(id),
-                    })));
-                    const plans = results.map((r, i) => {
-                      if (!r) return null;
-                      try {
-                        const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
-                        return { id: idList[i], amount: d[2], active: d[7] };
-                      } catch { return null; }
-                    }).filter(Boolean);
-                    const active = plans.filter(p => p.active);
-                    const userTotal = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
-                    const el1 = document.getElementById("dashActivePlans");
-                    const el2 = document.getElementById("dashMyPurchase");
-                    const el3 = document.getElementById("dashMyReturn");
-                    if (el1) el1.textContent = active.length;
-                    if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                    if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                  } else {
-                    const el1 = document.getElementById("dashActivePlans");
-                    const el2 = document.getElementById("dashMyPurchase");
-                    const el3 = document.getElementById("dashMyReturn");
-                    if (el1) el1.textContent = "0";
-                    if (el2) el2.textContent = "0";
-                    if (el3) el3.textContent = "0";
-                  }
-                }
-              } catch (e) {
-                console.error("Dashboard batch error:", e);
-                ["dashMyPurchase", "dashMyReturn", "dashBcfPrice"].forEach(id => {
-                  const el = document.getElementById(id);
-                  if (el && el.textContent === "⏳") el.textContent = "err";
-                });
-              }
-            })();
-        }
-      }
 
       return `
         <div class="stat-row">
@@ -1612,6 +1613,9 @@ ${t.desc}</div>
       else if (route === "insurance") content = renderInsurance();
       else content = renderDashboard();
       app.innerHTML = content;
+
+      // Load dashboard data AFTER the HTML is in the DOM
+      if (route === "dashboard" || route === "") loadDashboardData();
 
       // bind handlers
       const switchLink = document.getElementById("switchNet");
@@ -2477,7 +2481,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2OTA5NjIyNDgwNTUiLCJpc3N1ZWRfYXQiOjE3OTA2MDg1Mzk4Nzh9.wYEFOZVItqVo6ZDSLYVMsm-5-tLCaPPEoidDXlnHhtc",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY3MTI5MDM0OTk4ODMiLCJpc3N1ZWRfYXQiOjE3OTA2MTM5NjI4MzN9.00KaDe1ejdSrJBQIGmSleXIGeAUmfj2OMvy8OaEvcrM",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
