@@ -205,7 +205,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V54</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V55</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -252,6 +252,13 @@
       chainId: 97,
       chainName: "BSC Testnet",
       rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
+      // Multi-RPC fallback: tried in order, auto-rotate on failure
+      rpcUrls: [
+        "https://bsc-testnet-rpc.publicnode.com",
+        "https://data-seed-prebsc-2-s1.binance.org:8545",
+        "https://data-seed-prebsc-1-s1.binance.org:8545",
+        "https://data-seed-prebsc-2-s2.binance.org:8545",
+      ],
       explorer: "https://testnet.bscscan.com",
       addresses: {
         BCFToken:    "0xDF240F95B78CB71e01Bb986d59d6a1aC26Fd153D",
@@ -496,11 +503,109 @@
     let _selectedPlan = 0;
     let _nodeAmount = 1000;
 
-    // Initialize fallback read-only provider
+    // Initialize fallback read-only provider (multi-RPC with automatic failover)
+    function makeFallbackProvider() {
+      let idx = 0;
+      const urls = CONFIG.rpcUrls;
+      const build = () => {
+        const p = new ethers.JsonRpcProvider(urls[idx % urls.length], { chainId: 97, name: "BSC Testnet" });
+        // On any network error, rotate to the next RPC
+        p._next = () => { idx++; return build(); };
+        return p;
+      };
+      return build();
+    }
     try {
-      state.readProvider = new ethers.JsonRpcProvider("https://bsc-testnet-rpc.publicnode.com", { chainId: 97, name: "BSC Testnet" });
+      state.readProvider = makeFallbackProvider();
     } catch (e) {
       console.error("Read provider init failed:", e);
+      state.readProvider = new ethers.JsonRpcProvider(CONFIG.rpcUrl, { chainId: 97, name: "BSC Testnet" });
+    }
+
+    // ============================================================
+    // Fast batched JSON-RPC reader (bypasses ethers block polling)
+    // ============================================================
+    let _rpcUrlIdx = 0;
+    async function rawRpc(method, params) {
+      const urls = CONFIG.rpcUrls;
+      let lastErr;
+      for (let attempt = 0; attempt < urls.length; attempt++) {
+        const url = urls[(_rpcUrlIdx + attempt) % urls.length];
+        try {
+          const ctl = new AbortController();
+          const timer = setTimeout(() => ctl.abort(), 6000);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.message);
+          _rpcUrlIdx = (_rpcUrlIdx + attempt) % urls.length;  // stick with winner
+          return json.result;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("All RPCs failed");
+    }
+
+    // Batch multiple eth_call in ONE HTTP round-trip
+    async function batchCalls(calls) {
+      const urls = CONFIG.rpcUrls;
+      const body = calls.map((c, i) => ({
+        jsonrpc: "2.0", id: i + 1, method: "eth_call",
+        params: [{ to: c.to, data: c.data }, "latest"],
+      }));
+      let lastErr;
+      for (let attempt = 0; attempt < urls.length; attempt++) {
+        const url = urls[(_rpcUrlIdx + attempt) % urls.length];
+        try {
+          const ctl = new AbortController();
+          const timer = setTimeout(() => ctl.abort(), 8000);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: ctl.signal,
+          });
+          clearTimeout(timer);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const arr = await res.json();
+          if (!Array.isArray(arr)) throw new Error("bad batch response");
+          _rpcUrlIdx = (_rpcUrlIdx + attempt) % urls.length;
+          return arr.sort((a, b) => a.id - b.id).map(r => (r.error ? null : r.result));
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("All RPCs failed");
+    }
+
+    // Safe read: try provider, on failure rotate RPC and retry once
+    async function safeRead(fn, label) {
+      const attempt = async (provider) => {
+        const t0 = performance.now();
+        const r = await fn(provider);
+        const dt = Math.round(performance.now() - t0);
+        if (dt > 1500) console.warn(`[slow] ${label || "read"}: ${dt}ms`);
+        return r;
+      };
+      try {
+        return await attempt(state.readProvider);
+      } catch (e1) {
+        console.warn("RPC failed, rotating:", e1.message?.slice(0, 60));
+        try {
+          if (state.readProvider._next) state.readProvider = state.readProvider._next();
+          return await attempt(state.readProvider);
+        } catch (e2) {
+          console.error("RPC failed after rotation:", e2.message?.slice(0, 60));
+          throw e2;
+        }
+      }
     }
 
     // ============================================================
@@ -799,84 +904,100 @@
       let totalActivePlans = 0;
 
       if (state.deployed) {
-        try {
-          const invContract = getContract("Investment");
-          if (state.account) {
-            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
-            Promise.race([
-              invContract.getUserPurchases(state.account),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout")), 8000))
-            ]).then(ids => {
-              const idList = Array.from(ids || []).map(n => Number(n));
-              const checks = idList.map(id => invContract.getPurchaseInfo(id).then(p => ({
-                id, plan: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18), active: p[7]
-              })).catch(() => null));
-              Promise.all(checks).then(plans => {
-                const active = plans.filter(p => p && p.active);
-                totalActivePlans = active.length;
-                const userTotal = active.reduce((s, p) => s + Number(p.amountStr), 0);
-                const el1 = document.getElementById("dashActivePlans");
-                const el2 = document.getElementById("dashMyPurchase");
-                const el3 = document.getElementById("dashMyReturn");
-                if (el1) el1.textContent = totalActivePlans;
-                if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
-              });
-            }).catch(e => {
-              console.error("Dashboard user purchases error:", e);
-              const el2 = document.getElementById("dashMyPurchase");
-              if (el2) el2.textContent = "err";
-            });
-          }
-
-          // BCF Pool Value (Operations pool via Dashboard)
-          const dashC = getContract("Dashboard");
-          Promise.race([
-            dashC.getPoolBalance(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
-          ]).then(bal => {
-            const el = document.getElementById("dashBcfPool");
-            if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-          }).catch(e => console.error("BCF pool error:", e));
-
-          // BCF Price (live, from PriceOracle.getPrice())
-          setTimeout(() => {
-            (async () => {
-              const el = document.getElementById("dashBcfPrice");
-              const timeEl = document.getElementById("dashBcfTime");
-              const srcEl = document.getElementById("dashBcfSource");
-              if (!el) return;
+        if (state.account) {
+          // FAST PATH: one batched round-trip for everything on this page
+          (async () => {
               try {
-                const po = getContract("PriceOracle");
-                const [p, pair] = await Promise.all([
-                  po.getPrice(),
-                  po.pair().catch(() => "0x0000000000000000000000000000000000000000")
+                const sel = {
+                  getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
+                  getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
+                  getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
+                  getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
+                  pair:            "0x" + ethers.id("pair()").slice(2, 10),
+                  balanceOf:       "0x" + ethers.id("balanceOf(address)").slice(2, 10),
+                };
+                const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+                const padUint = (n) => n.toString(16).padStart(64, "0");
+
+                const first = await batchCalls([
+                  { to: CONFIG.addresses.Investment, data: sel.getUserPurchases + padAddr(state.account) },
+                  { to: CONFIG.addresses.Dashboard,  data: sel.getPoolBalance },
+                  { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
+                  { to: CONFIG.addresses.PriceOracle, data: sel.pair },
+                  { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(CONFIG.addresses.Insurance) },
                 ]);
-                if (p && Number(p) > 0) {
-                  const price = Number(ethers.formatUnits(p, 18));
-                  el.textContent = "$" + price.toFixed(4);
-                  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
-                  if (srcEl) {
-                    const isPancake = pair !== "0x0000000000000000000000000000000000000000";
-                    srcEl.textContent = isPancake ? "via PancakeSwap" : "via PriceOracle";
+
+                // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
+                const invIface = new ethers.Interface(ABIS.Investment);
+                const poIface  = new ethers.Interface(ABIS.PriceOracle);
+                const usdtIface = new ethers.Interface(ABIS.MockUSDT);
+
+                // Stats that don't need purchase details
+                if (first[1]) {
+                  const el = document.getElementById("dashBcfPool");
+                  const bal = new ethers.Interface(ABIS.Dashboard).decodeFunctionResult("getPoolBalance()", first[1])[0];
+                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                }
+                if (first[2]) {
+                  const el = document.getElementById("dashBcfPrice");
+                  const timeEl = document.getElementById("dashBcfTime");
+                  const srcEl = document.getElementById("dashBcfSource");
+                  const p = poIface.decodeFunctionResult("getPrice()", first[2])[0];
+                  if (el && p > 0n) {
+                    el.textContent = "$" + Number(ethers.formatUnits(p, 18)).toFixed(4);
+                    if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+                    if (srcEl) {
+                      const pairAddr = first[3] ? poIface.decodeFunctionResult("pair()", first[3])[0] : ethers.ZeroAddress;
+                      srcEl.textContent = (pairAddr && pairAddr !== ethers.ZeroAddress) ? "via PancakeSwap" : "via PriceOracle";
+                    }
                   }
-                } else {
-                  el.textContent = "$0.00";
+                }
+                if (first[4]) {
+                  const el = document.getElementById("dashInsPool");
+                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[4])[0];
+                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                }
+
+                // Purchases: second batched round-trip
+                if (first[0]) {
+                  const idList = invIface.decodeFunctionResult("getUserPurchases(address)", first[0]).map(n => Number(n));
+                  if (idList.length > 0) {
+                    const results = await batchCalls(idList.map(id => ({
+                      to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(id),
+                    })));
+                    const plans = results.map((r, i) => {
+                      if (!r) return null;
+                      try {
+                        const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+                        return { id: idList[i], amount: d[2], active: d[7] };
+                      } catch { return null; }
+                    }).filter(Boolean);
+                    const active = plans.filter(p => p.active);
+                    const userTotal = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
+                    const el1 = document.getElementById("dashActivePlans");
+                    const el2 = document.getElementById("dashMyPurchase");
+                    const el3 = document.getElementById("dashMyReturn");
+                    if (el1) el1.textContent = active.length;
+                    if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                    if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                  } else {
+                    const el1 = document.getElementById("dashActivePlans");
+                    const el2 = document.getElementById("dashMyPurchase");
+                    const el3 = document.getElementById("dashMyReturn");
+                    if (el1) el1.textContent = "0";
+                    if (el2) el2.textContent = "0";
+                    if (el3) el3.textContent = "0";
+                  }
                 }
               } catch (e) {
-                console.error("BCF price error:", e);
-                el.textContent = "$err";
+                console.error("Dashboard batch error:", e);
+                ["dashMyPurchase", "dashMyReturn", "dashBcfPrice"].forEach(id => {
+                  const el = document.getElementById(id);
+                  if (el && el.textContent === "⏳") el.textContent = "err";
+                });
               }
             })();
-          }, 50);
-
-          // Insurance Pool Value (USDT held by Insurance contract)
-          const usdtC = getContract("MockUSDT");
-          usdtC.balanceOf(CONFIG.addresses.Insurance).then(bal => {
-            const el = document.getElementById("dashInsPool");
-            if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-          }).catch(e => console.error("Insurance pool error:", e));
-        } catch (e) { console.error("Dashboard fetch error:", e); }
+        }
       }
 
       return `
@@ -1656,20 +1777,28 @@ ${t.desc}</div>
         })();
       }
 
-      // Redeem page — Load balances + price
+      // Redeem page — Load balances + price (batched, 1 round-trip)
       if (route === "redeem" && state.account && state.deployed) {
         (async () => {
           try {
-            const usdtC = getContract("MockUSDT");
-            const bcfC = getContract("BCFToken");
-            const opsC = getContract("Operations");
-            const oracleC = getContract("PriceOracle");
-            const [usdtBal, bcfBal, poolBal, priceWei] = await Promise.all([
-              usdtC.balanceOf(state.account).catch(() => 0n),
-              bcfC.balanceOf(state.account).catch(() => 0n),
-              opsC.getUSDTPoolBalance().catch(() => 0n),
-              oracleC.getPrice().catch(() => 0n)
+            const sel = {
+              balanceOf: "0x" + ethers.id("balanceOf(address)").slice(2, 10),
+              getUSDTPoolBalance: "0x" + ethers.id("getUSDTPoolBalance()").slice(2, 10),
+              getPrice: "0x" + ethers.id("getPrice()").slice(2, 10),
+            };
+            const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+            const res = await batchCalls([
+              { to: CONFIG.addresses.MockUSDT,    data: sel.balanceOf + padAddr(state.account) },
+              { to: CONFIG.addresses.BCFToken,    data: sel.balanceOf + padAddr(state.account) },
+              { to: CONFIG.addresses.Operations,  data: sel.getUSDTPoolBalance },
+              { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
             ]);
+            const balOf = new ethers.Interface(ABIS.MockUSDT).decodeFunctionResult.bind(new ethers.Interface(ABIS.MockUSDT));
+            const usdtBal = res[0] ? balOf("balanceOf(address)", res[0])[0] : 0n;
+            const bcfBal  = res[1] ? balOf("balanceOf(address)", res[1])[0] : 0n;
+            const poolBal = res[2] ? new ethers.Interface(ABIS.Operations).decodeFunctionResult("getUSDTPoolBalance()", res[2])[0] : 0n;
+            const priceWei = res[3] ? new ethers.Interface(ABIS.PriceOracle).decodeFunctionResult("getPrice()", res[3])[0] : 0n;
+
             const usdtEl = document.getElementById("redeemUsdtBal");
             const bcfEl = document.getElementById("redeemBcfBal");
             const poolEl = document.getElementById("redeemPoolBal");
@@ -2216,7 +2345,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2NzYwMTcyOTk4MTkiLCJpc3N1ZWRfYXQiOjE3OTA2MDUwOTk0NTJ9.pZdo4Qe-6pAZK40JYpV2TNYgyYvx9KgNldNv_OI4EUM",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2ODM0OTk2MjI2MjYiLCJpc3N1ZWRfYXQiOjE3OTA2MDY4MjMxMjN9.7f2LZLZ0LXYfHFScM2fXolPVhwhqQx8SI0MsLU0CGlw",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
