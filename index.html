@@ -161,6 +161,34 @@
       100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
   </style>
+  <style>
+    /* Hide deployment-platform floating badge */
+    #minimax-floating-ball,
+    .minimax-floating-ball,
+    #minimax-badge,
+    .minimax-badge { display: none !important; }
+  </style>
+  <script>
+    // Belt-and-suspenders: remove injected badge nodes if CSS is bypassed
+    (function () {
+      function scrub() {
+        document.querySelectorAll(
+          '[id*="minimax" i], [class*="minimax" i]'
+        ).forEach(function (el) {
+          var tag = (el.tagName || "").toLowerCase();
+          if (tag === "script" || tag === "style" || tag === "link") return;
+          el.remove();
+        });
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", scrub);
+      } else {
+        scrub();
+      }
+      window.addEventListener("load", scrub);
+      setInterval(scrub, 1500);
+    })();
+  </script>
 </head>
 <body>
   <!-- Top bar -->
@@ -205,7 +233,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V55</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V57</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -586,6 +614,18 @@
     }
 
     // Safe read: try provider, on failure rotate RPC and retry once
+    // Convenience: batch-read N values of the same function across different args
+    // e.g. readAll("getPurchaseInfo", abiName, ids.map(padUint))
+    async function batchSameFn(abiName, fnSig, argHexes) {
+      if (argHexes.length === 0) return [];
+      const sel = "0x" + ethers.id(fnSig).slice(2, 10);
+      const to = CONFIG.addresses[abiName.replace("Contract", "")] || null;
+      if (!to) throw new Error("unknown contract for " + abiName);
+      const res = await batchCalls(argHexes.map(a => ({ to, data: sel + a })));
+      const iface = new ethers.Interface(ABIS[abiName] || []);
+      return res.map(r => (r ? iface.decodeFunctionResult(fnSig, r) : null));
+    }
+
     async function safeRead(fn, label) {
       const attempt = async (provider) => {
         const t0 = performance.now();
@@ -925,6 +965,8 @@
                   { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
                   { to: CONFIG.addresses.PriceOracle, data: sel.pair },
                   { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(CONFIG.addresses.Insurance) },
+                  { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(state.account) },
+                  { to: CONFIG.addresses.BCFToken,   data: sel.balanceOf + padAddr(state.account) },
                 ]);
 
                 // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
@@ -956,6 +998,17 @@
                   const el = document.getElementById("dashInsPool");
                   const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[4])[0];
                   if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                }
+                // Wallet balances (same batch)
+                if (first[5]) {
+                  const el = document.getElementById("dashUsdtBal");
+                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[5])[0];
+                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT";
+                }
+                if (first[6]) {
+                  const el = document.getElementById("dashBcfBal");
+                  const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[6])[0];
+                  if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF";
                 }
 
                 // Purchases: second batched round-trip
@@ -1577,17 +1630,24 @@ ${t.desc}</div>
         try {
           claimInsDash.disabled = true;
           claimInsDash.textContent = "⏳ Loading...";
-          const insC = getContract("Insurance");
-          const invC = getContract("Investment");
-          // Get user's active purchases
-          const ids = await insC.getUserPurchases?.(state.account)?.catch?.(() => null) || await invC.getUserPurchases(state.account);
-          const idList = Array.from(ids || []).map(n => Number(n));
+          const invIface = new ethers.Interface(ABIS.Investment);
+          const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+          const padUint = (n) => n.toString(16).padStart(64, "0");
+          const r1 = await batchCalls([
+            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account) },
+          ]);
+          const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
           const eligible = [];
-          for (const id of idList) {
-            try {
-              const p = await invC.getPurchaseInfo(id);
-              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
-            } catch (e) {}
+          if (idList.length > 0) {
+            const r2 = await batchCalls(idList.map(id => ({
+              to: CONFIG.addresses.Investment,
+              data: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint(id),
+            })));
+            r2.forEach((raw, i) => {
+              if (!raw) return;
+              const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", raw);
+              if (p[7]) eligible.push({ id: idList[i], planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            });
           }
           claimInsDash.disabled = false;
           claimInsDash.textContent = "Claim";
@@ -1711,29 +1771,61 @@ ${t.desc}</div>
           const listBody = document.getElementById("insurancePolicyList");
           if (!listBody) return;
           try {
-            const insC = getContract("Insurance");
-            const invC = getContract("Investment");
-            const ids = await invC.getUserPurchases(state.account);
-            const idList = Array.from(ids || []).map(n => Number(n));
+            const invIface = new ethers.Interface(ABIS.Investment);
+            const insIface = new ethers.Interface(ABIS.Insurance);
+            const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+            const padUint = (n) => n.toString(16).padStart(64, "0");
+            const selIds = "0x" + ethers.id("getUserPurchases(address)").slice(2, 10);
+            const selInfo = "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10);
+            const selPol = "0x" + ethers.id("getPolicy(uint256)").slice(2, 10);
+
+            // Round-trip 1: purchase IDs
+            const r1 = await batchCalls([
+              { to: CONFIG.addresses.Investment, data: selIds + padAddr(state.account) },
+            ]);
+            const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
+
             const rows = [];
             let totalActive = 0;
             let firstStart = 0;
-            for (const id of idList) {
-              try {
-                const p = await invC.getPurchaseInfo(id);
+            if (idList.length > 0) {
+              // Round-trip 2: purchase info + policy, both in ONE batch
+              const calls = [];
+              idList.forEach(id => {
+                calls.push({ to: CONFIG.addresses.Investment, data: selInfo + padUint(id) });
+                calls.push({ to: CONFIG.addresses.Insurance,  data: selPol  + padUint(id) });
+              });
+              const r2 = await batchCalls(calls);
+              // Round-trip 3: protection amounts for activated policies only
+              const activatedIdx = [];
+              for (let i = 0; i < idList.length; i++) {
+                const pRaw = r2[i * 2], polRaw = r2[i * 2 + 1];
+                if (!pRaw) continue;
+                const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", pRaw);
                 if (!p[7]) continue;
-                const policy = await insC.getPolicy(id);
-                // struct: (purchaseId, startMonth, amountU, claimed)
-                const activated = policy[0] != 0n;
-                const protection = activated ? await insC.getProtectionAmount(id).catch(() => 0n) : 0n;
+                const policy = polRaw ? insIface.decodeFunctionResult("getPolicy(uint256)", polRaw) : null;
+                const activated = policy ? policy[0] != 0n : false;
+                if (activated) activatedIdx.push({ i, id: idList[i] });
                 rows.push({
-                  id, planId: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18),
-                  activated, claimed: policy[3],
-                  protection: ethers.formatUnits(protection, 18),
+                  id: idList[i], planId: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18),
+                  activated, claimed: policy ? policy[3] : false,
+                  protection: "0",
                 });
-                if (activated && !policy[3]) totalActive++;
+                if (activated && policy && !policy[3]) totalActive++;
                 if (firstStart === 0 && p[3] > 0n) firstStart = Number(p[3]);
-              } catch (e) { console.error("Insurance policy check failed for " + id, e); }
+              }
+              if (activatedIdx.length > 0) {
+                const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
+                const r3 = await batchCalls(activatedIdx.map(x => ({
+                  to: CONFIG.addresses.Insurance, data: selProt + padUint(x.id),
+                })));
+                r3.forEach((raw, k) => {
+                  if (!raw) return;
+                  const amt = insIface.decodeFunctionResult("getProtectionAmount(uint256)", raw)[0];
+                  const row = rows.find(r => r.id === activatedIdx[k].id);
+                  if (row) row.protection = ethers.formatUnits(amt, 18);
+                });
+              }
             }
             if (rows.length === 0) {
               listBody.innerHTML = '<p style="color:var(--muted);text-align:center;padding:14px 0;">No plans found. Buy a plan first.</p>';
@@ -1819,36 +1911,48 @@ ${t.desc}</div>
         })();
       }
 
-      // Account — Load user investments from chain
-      if (route === "account" && state.account && state.deployed && state.provider) {
+      // Account — Load user investments from chain (batched, 2 round-trips)
+      if (route === "account" && state.account && state.deployed) {
         (async () => {
           const listBody = document.getElementById("invListBody");
           const totalEl = document.getElementById("acctTotalInvest");
           try {
-            const inv = getContract("Investment");
-            // Direct lookup: getUserPurchases(address) returns array of purchase IDs
-            const purchaseIds = await Promise.race([
-              inv.getUserPurchases(state.account),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("RPC timeout (8s)")), 8000))
+            const selGetUser = "0x" + ethers.id("getUserPurchases(address)").slice(2, 10);
+            const selGetInfo = "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10);
+            const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+            const padUint = (n) => n.toString(16).padStart(64, "0");
+            const iface = new ethers.Interface(ABIS.Investment);
+
+            // Round-trip 1: get purchase IDs
+            const r1 = await batchCalls([
+              { to: CONFIG.addresses.Investment, data: selGetUser + padAddr(state.account) },
             ]);
-            const ids = Array.from(purchaseIds || []).map(n => Number(n));
-            const userPlans = [];
-            for (const id of ids) {
-              try {
-                const p = await inv.getPurchaseInfo(id);
-                // Convert each BigNumber to a string immediately to avoid Number() overflow
-                const amountStr = ethers.formatUnits(p[2], 18);
-                userPlans.push({
-                  id,
-                  planId: Number(p[1]),
-                  amountStr,
-                  start: Number(p[3]),
-                  monthsCompleted: Number(p[6]),
-                  active: p[7],
-                  planName: ["A","B","C"][Number(p[1])] || "?"
-                });
-              } catch (e) { console.error("getPurchaseInfo failed for id " + id, e); }
+            if (!r1[0]) throw new Error("no response from RPC");
+            const ids = iface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n));
+
+            // Round-trip 2: all purchase details in ONE batch
+            let userPlans = [];
+            if (ids.length > 0) {
+              const r2 = await batchCalls(ids.map(id => ({
+                to: CONFIG.addresses.Investment, data: selGetInfo + padUint(id),
+              })));
+              userPlans = r2.map((r, i) => {
+                if (!r) return null;
+                try {
+                  const p = iface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+                  return {
+                    id: ids[i],
+                    planId: Number(p[1]),
+                    amountStr: ethers.formatUnits(p[2], 18),
+                    start: Number(p[3]),
+                    monthsCompleted: Number(p[6]),
+                    active: p[7],
+                    planName: ["A", "B", "C"][Number(p[1])] || "?",
+                  };
+                } catch { return null; }
+              }).filter(Boolean);
             }
+
             if (totalEl) {
               const total = userPlans.reduce((s, p) => s + Number(p.amountStr), 0);
               totalEl.textContent = total.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -1866,7 +1970,7 @@ ${t.desc}</div>
                           <td>#${p.id}</td>
                           <td>Plan ${p.planName}</td>
                           <td>${Number(p.amountStr).toFixed(0)} USDT</td>
-                          <td>${p.monthsCompleted}/${[5,10,20][p.planId] || "?"}</td>
+                          <td>${p.monthsCompleted}/${[5, 10, 20][p.planId] || "?"}</td>
                         </tr>
                       `).join('')}
                     </tbody>
@@ -1877,11 +1981,9 @@ ${t.desc}</div>
           } catch (e) {
             console.error("Investment list load error:", e);
             if (listBody) {
-              listBody.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px 0;">❌ Error: ${e.message}<br><small>Try refreshing the page (F5)</small></p>`;
+              listBody.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px 0;">❌ ${e.message}<br><small>Press F5 to retry</small></p>`;
             }
-            if (totalEl) {
-              totalEl.textContent = "?";
-            }
+            if (totalEl) totalEl.textContent = "—";
           }
         })();
       }
@@ -2017,16 +2119,24 @@ ${t.desc}</div>
         try {
           claimInsPage.disabled = true;
           claimInsPage.textContent = "⏳ Loading...";
-          const insC = getContract("Insurance");
-          const invC = getContract("Investment");
-          const ids = await invC.getUserPurchases(state.account);
-          const idList = Array.from(ids || []).map(n => Number(n));
+          const invIface2 = new ethers.Interface(ABIS.Investment);
+          const padAddr2 = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+          const padUint2 = (n) => n.toString(16).padStart(64, "0");
+          const rA = await batchCalls([
+            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr2(state.account) },
+          ]);
+          const idList = rA[0] ? invIface2.decodeFunctionResult("getUserPurchases(address)", rA[0]).map(n => Number(n)) : [];
           const eligible = [];
-          for (const id of idList) {
-            try {
-              const p = await invC.getPurchaseInfo(id);
-              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
-            } catch (e) {}
+          if (idList.length > 0) {
+            const rB = await batchCalls(idList.map(id => ({
+              to: CONFIG.addresses.Investment,
+              data: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint2(id),
+            })));
+            rB.forEach((raw, i) => {
+              if (!raw) return;
+              const p = invIface2.decodeFunctionResult("getPurchaseInfo(uint256)", raw);
+              if (p[7]) eligible.push({ id: idList[i], planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            });
           }
           claimInsPage.disabled = false;
           claimInsPage.textContent = "Activate Insurance";
@@ -2053,28 +2163,43 @@ ${t.desc}</div>
         try {
           claimInsProtect.disabled = true;
           const insC = getContract("Insurance", true);
-          const ids = await getContract("Investment").getUserPurchases(state.account).catch(() => getContract("Investment").userPurchases(state.account));
-          const idList = Array.from(ids || []).map(n => Number(n));
+          const insIface = new ethers.Interface(ABIS.Insurance);
+          const invIface = new ethers.Interface(ABIS.Investment);
+          const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+          const padUint = (n) => n.toString(16).padStart(64, "0");
+          const r1 = await batchCalls([
+            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account) },
+          ]);
+          const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
           let claimed = false;
-          for (const id of idList) {
-            try {
-              const policy = await insC.getPolicy(id);
-              // struct: (purchaseId, startMonth, amountU, claimed)
+          if (idList.length > 0) {
+            // batch: policies + protection amounts
+            const selPol = "0x" + ethers.id("getPolicy(uint256)").slice(2, 10);
+            const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
+            const r2 = await batchCalls(idList.flatMap(id => [
+              { to: CONFIG.addresses.Insurance, data: selPol + padUint(id) },
+              { to: CONFIG.addresses.Insurance, data: selProt + padUint(id) },
+            ]));
+            const pending = [];
+            for (let i = 0; i < idList.length; i++) {
+              const polRaw = r2[i * 2], protRaw = r2[i * 2 + 1];
+              if (!polRaw) continue;
+              const policy = insIface.decodeFunctionResult("getPolicy(uint256)", polRaw);
               if (policy[0] != 0n && !policy[3]) {
-                const protection = await insC.getProtectionAmount(id);
-                if (Number(protection) > 0) {
-                  const ok = confirm(`Claim protection for Plan #${id}?\n\nProtection amount: ${ethers.formatUnits(protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
-                  if (ok) {
-                    claimInsProtect.textContent = "⏳ Claiming #" + id + "...";
-                    const tx = await insC.claimInsurance(id);
-                    await tx.wait();
-                    alert(`✅ Claimed protection for Plan #${id}!\nTx: ${tx.hash}`);
-                    claimed = true;
-                  }
-                }
+                const protection = protRaw ? insIface.decodeFunctionResult("getProtectionAmount(uint256)", protRaw)[0] : 0n;
+                if (Number(protection) > 0) pending.push({ id: idList[i], protection });
               }
-            } catch (e) {
-              console.error("claimInsurance error for " + id, e);
+            }
+            for (const item of pending) {
+              const ok = confirm(`Claim protection for Plan #${item.id}?\n\nProtection amount: ${ethers.formatUnits(item.protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
+              if (ok) {
+                claimInsProtect.textContent = "⏳ Claiming #" + item.id + "...";
+                const tx = await insC.claimInsurance(item.id);
+                await tx.wait();
+                alert(`✅ Claimed protection for Plan #${item.id}!\nTx: ${tx.hash}`);
+                claimed = true;
+                break;
+              }
             }
           }
           if (!claimed) alert("No claimable insurance policies found. (Note: insurance pool may be empty.)");
@@ -2143,22 +2268,28 @@ ${t.desc}</div>
       if (route === "node" && state.account && state.deployed) {
         (async () => {
           try {
-            const nodeC = getContract("Node");
-            const info = await Promise.race([
-              nodeC.getNodeInfo(state.account),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
+            // Single batched round-trip: node info + USDT balance
+            const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+            const res = await batchCalls([
+              { to: CONFIG.addresses.Node,     data: "0x" + ethers.id("getNodeInfo(address)").slice(2, 10) + padAddr(state.account) },
+              { to: CONFIG.addresses.MockUSDT, data: "0x" + ethers.id("balanceOf(address)").slice(2, 10) + padAddr(state.account) },
             ]);
+            const nodeIface = new ethers.Interface(ABIS.Node);
+            const usdtIface = new ethers.Interface(ABIS.MockUSDT);
+            const info = res[0] ? nodeIface.decodeFunctionResult("getNodeInfo(address)", res[0]) : null;
+            if (!info) throw new Error("no node data");
+
             // struct: (tier, amountU, shares, joinAt, baseRewardClaimed, bonusClaimed)
             const tierNames = ["V2", "V3", "V3 Premium", "V4 Premium"];
             const tierEl = document.getElementById("nodeTier");
             const invEl = document.getElementById("nodeInvested");
             const sharesEl = document.getElementById("nodeShares2");
-            if (tierEl) tierEl.textContent = info.shares > 0n ? tierNames[Number(info[0])] : "—";
+            if (tierEl) tierEl.textContent = info[2] > 0n ? tierNames[Number(info[0])] : "—";
             if (invEl) invEl.textContent = Number(ethers.formatUnits(info[1], 18)).toLocaleString();
             if (sharesEl) sharesEl.textContent = info[2].toString();
 
             // Calculate claimable
-            if (info.shares > 0n && info.joinAt > 0n) {
+            if (info[2] > 0n && info[3] > 0n) {
               const monthsPassed = Math.min(11, Math.floor((Date.now()/1000 - Number(info[3])) / (30*24*3600)));
               if (monthsPassed > 0) {
                 let total = 0;
@@ -2173,11 +2304,12 @@ ${t.desc}</div>
               }
             }
 
-            // USDT balance
-            const usdtC = getContract("MockUSDT");
-            const bal = await usdtC.balanceOf(state.account);
-            const balEl = document.getElementById("nodeBalanceUsdt");
-            if (balEl) balEl.textContent = `Balance: ${Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`;
+            // USDT balance (same batch)
+            if (res[1]) {
+              const bal = usdtIface.decodeFunctionResult("balanceOf(address)", res[1])[0];
+              const balEl = document.getElementById("nodeBalanceUsdt");
+              if (balEl) balEl.textContent = `Balance: ${Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`;
+            }
           } catch (e) {
             console.error("Node load error:", e);
           }
@@ -2345,7 +2477,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2ODM0OTk2MjI2MjYiLCJpc3N1ZWRfYXQiOjE3OTA2MDY4MjMxMjN9.7f2LZLZ0LXYfHFScM2fXolPVhwhqQx8SI0MsLU0CGlw",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY2OTA5NjIyNDgwNTUiLCJpc3N1ZWRfYXQiOjE3OTA2MDg1Mzk4Nzh9.wYEFOZVItqVo6ZDSLYVMsm-5-tLCaPPEoidDXlnHhtc",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
@@ -2363,117 +2495,5 @@ if(!ok){try{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors",credenti
 ["pushState","replaceState"].forEach(function(n){var f=history[n];if(!f)return;history[n]=function(){var r=f.apply(this,arguments);setTimeout(send,0);return r;};});
 window.addEventListener("popstate",send);window.addEventListener("hashchange",send);send();
 })();</script>
-<style>
-#minimax-floating-ball {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 10px 12px;
-  background: #222222;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  color: #F8F8F8;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  z-index: 9999;
-  transition: all 0.3s ease;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-#minimax-floating-ball:hover {
-  transform: translateY(-2px);
-  background: #383838;
-}
-.minimax-ball-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.minimax-logo-wave {
-  width: 20px;
-  height: 20px;
-  background-image: url("data:image/svg+xml,%3Csvg%20preserveAspectRatio%3D%27none%27%20width%3D%27100%25%27%20height%3D%27100%25%27%20overflow%3D%27visible%27%20style%3D%27display%3A%20block%3B%27%20viewBox%3D%270%200%20170.136%20138.225%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cg%20id%3D%27Frame%202116748449%27%3E%3Cpath%20id%3D%27Subtract%27%20d%3D%27M170%20101.783C170%20105.144%20168.49%20108.327%20165.886%20110.453L134.963%20135.702C132.964%20137.334%20130.463%20138.225%20127.883%20138.225H10.4938C4.69824%20138.225%200%20133.527%200%20127.732V39.2289C0%2035.8597%201.51758%2032.6698%204.13162%2030.5442L38.5402%202.56547C40.536%200.942662%2043.0298%200.0567377%2045.602%200.0567377H159.506C165.302%200.0567377%20170%204.75498%20170%2010.5506V101.783Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Subtract_2%27%20d%3D%27M149.011%2094.4632C149.011%2096.1471%20148.253%2097.7415%20146.946%2098.8043L125.893%20115.936C124.895%20116.748%20123.648%20117.191%20122.361%20117.191H24.6479C22.716%20117.191%2021.15%20115.625%2021.15%20113.693V46.1166C21.15%2044.4267%2021.9135%2042.8274%2023.2274%2041.7648L47.367%2022.2437C48.3638%2021.4376%2049.607%2020.9982%2050.8888%2020.9988L145.514%2021.0427C147.446%2021.0436%20149.011%2022.6094%20149.011%2024.5406V94.4632Z%27%20fill%3D%27white%27%20style%3D%27fill%3Awhite%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Rectangle%20111142564%27%20d%3D%27M42.111%2080.8025C42.111%2077.7115%2044.6167%2075.2057%2047.7077%2075.2057H60.9999C64.0908%2075.2057%2066.5966%2077.7115%2066.5966%2080.8025V121.029H42.111V80.8025Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Rectangle%20111142567%27%20d%3D%27M79.1894%2080.8025C79.1894%2077.7115%2081.6952%2075.2057%2084.7861%2075.2057H98.0783C101.169%2075.2057%20103.675%2077.7115%20103.675%2080.8025V121.029H79.1894V80.8025Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 14px 11px;
-  background-color: #8FD1FF;
-  border-radius: 4px;
-}
-
-.minimax-ball-text {
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.minimax-close-icon {
-  margin-left: 8px;
-  font-size: 16px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-.minimax-close-icon:hover {
-  opacity: 1;
-}
-</style>
-<div id="minimax-floating-ball">
-  <div class="minimax-ball-content">
-    <div class="minimax-logo-wave"></div>
-    <span class="minimax-ball-text">Created by MiniMax Agent</span>
-  </div>
-  <div class="minimax-close-icon">×</div>
-</div>
-<script>
-// Initialize floating ball functionality
-function initFloatingBall() {
-  const ball = document.getElementById('minimax-floating-ball');
-  if (!ball) return;
-
-  // Initial animation
-  ball.style.opacity = '0';
-  ball.style.transform = 'translateY(20px)';
-
-  setTimeout(() => {
-    ball.style.opacity = '1';
-    ball.style.transform = 'translateY(0)';
-  }, 500);
-
-  // Handle logo click
-  const ballContent = ball.querySelector('.minimax-ball-content');
-  ballContent.addEventListener('click', function (e) {
-    e.stopPropagation();
-    window.open('https://agent.minimax.io/', '_blank');
-    ball.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-      ball.style.transform = 'scale(1)';
-    }, 100);
-  });
-
-  // Handle close button click
-  const closeIcon = ball.querySelector('.minimax-close-icon');
-  closeIcon.addEventListener('click', function (e) {
-    e.stopPropagation();
-    ball.style.opacity = '0';
-    ball.style.transform = 'translateY(20px)';
-
-    setTimeout(() => {
-      ball.style.display = 'none';
-    }, 300);
-  });
-}
-
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', initFloatingBall); 
-</script>
 </body>
 </html>
