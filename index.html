@@ -233,7 +233,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V59</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V60</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -965,6 +965,23 @@
                 { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(state.account) },
                 { to: CONFIG.addresses.BCFToken,   data: sel.balanceOf + padAddr(state.account) },
               ]);
+              // Some public RPCs intermittently drop the last 2-3 items of large batches.
+              // Fall back to individual calls for any null positions.
+              const want = ["getUserPurchases","getPoolBalance","getPrice","pair","insPool","userUsdt","userBcf"];
+              for (let i = 0; i < first.length; i++) {
+                if (first[i]) continue;
+                try {
+                  let url, data;
+                  if (i === 0) { url = CONFIG.addresses.Investment;  data = sel.getUserPurchases + padAddr(state.account); }
+                  else if (i === 1) { url = CONFIG.addresses.Dashboard;  data = sel.getPoolBalance; }
+                  else if (i === 2) { url = CONFIG.addresses.PriceOracle; data = sel.getPrice; }
+                  else if (i === 3) { url = CONFIG.addresses.PriceOracle; data = sel.pair; }
+                  else if (i === 4) { url = CONFIG.addresses.MockUSDT;   data = sel.balanceOf + padAddr(CONFIG.addresses.Insurance); }
+                  else if (i === 5) { url = CONFIG.addresses.MockUSDT;   data = sel.balanceOf + padAddr(state.account); }
+                  else                { url = CONFIG.addresses.BCFToken;   data = sel.balanceOf + padAddr(state.account); }
+                  first[i] = await rawRpc("eth_call", [{ to: url, data }, "latest"]);
+                } catch (e) { console.warn("retry "+want[i]+" failed:", e.message?.slice(0,60)); }
+              }
 
               // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
               const invIface = new ethers.Interface(ABIS.Investment);
@@ -1012,9 +1029,19 @@
               if (first[0]) {
                 const idList = invIface.decodeFunctionResult("getUserPurchases(address)", first[0]).map(n => Number(n));
                 if (idList.length > 0) {
-                  const results = await batchCalls(idList.map(id => ({
+                  let results = await batchCalls(idList.map(id => ({
                     to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(id),
                   })));
+                  // Per-id retry for any null responses
+                  for (let i = 0; i < results.length; i++) {
+                    if (results[i]) continue;
+                    try {
+                      results[i] = await rawRpc("eth_call", [
+                        { to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(idList[i]) },
+                        "latest",
+                      ]);
+                    } catch (e) { console.warn("getPurchaseInfo("+idList[i]+") retry failed:", e.message?.slice(0,60)); }
+                  }
                   const plans = results.map((r, i) => {
                     if (!r) return null;
                     try {
@@ -2481,7 +2508,7 @@ ${t.desc}</div>
 
 <script data-minimax-analytics="minimax-website-analytics-v1">(function(){
 "use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDY3MTI5MDM0OTk4ODMiLCJpc3N1ZWRfYXQiOjE3OTA2MTM5NjI4MzN9.00KaDe1ejdSrJBQIGmSleXIGeAUmfj2OMvy8OaEvcrM",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDcwNjIzMzYwOTA0NTkiLCJpc3N1ZWRfYXQiOjE3OTA2OTkwNTUyODR9.uOMuTpuqBeZna7jX3qsO42BwlVxpFZKiM1G2np4CYgQ",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
 function path(){
 var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
 p=p.split(/[?#]/,1)[0]||"/";
