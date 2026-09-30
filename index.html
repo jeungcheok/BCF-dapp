@@ -233,7 +233,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V60</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V61</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -944,134 +944,121 @@
     // Dashboard data loader — called AFTER HTML is in the DOM
     async function loadDashboardData() {
       if (!state.deployed || !state.account) return;
-      try {
-              const sel = {
-                getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
-                getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
-                getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
-                getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
-                pair:            "0x" + ethers.id("pair()").slice(2, 10),
-                balanceOf:       "0x" + ethers.id("balanceOf(address)").slice(2, 10),
-              };
-              const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
-              const padUint = (n) => n.toString(16).padStart(64, "0");
 
-              const first = await batchCalls([
-                { to: CONFIG.addresses.Investment, data: sel.getUserPurchases + padAddr(state.account) },
-                { to: CONFIG.addresses.Dashboard,  data: sel.getPoolBalance },
-                { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
-                { to: CONFIG.addresses.PriceOracle, data: sel.pair },
-                { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(CONFIG.addresses.Insurance) },
-                { to: CONFIG.addresses.MockUSDT,   data: sel.balanceOf + padAddr(state.account) },
-                { to: CONFIG.addresses.BCFToken,   data: sel.balanceOf + padAddr(state.account) },
-              ]);
-              // Some public RPCs intermittently drop the last 2-3 items of large batches.
-              // Fall back to individual calls for any null positions.
-              const want = ["getUserPurchases","getPoolBalance","getPrice","pair","insPool","userUsdt","userBcf"];
-              for (let i = 0; i < first.length; i++) {
-                if (first[i]) continue;
-                try {
-                  let url, data;
-                  if (i === 0) { url = CONFIG.addresses.Investment;  data = sel.getUserPurchases + padAddr(state.account); }
-                  else if (i === 1) { url = CONFIG.addresses.Dashboard;  data = sel.getPoolBalance; }
-                  else if (i === 2) { url = CONFIG.addresses.PriceOracle; data = sel.getPrice; }
-                  else if (i === 3) { url = CONFIG.addresses.PriceOracle; data = sel.pair; }
-                  else if (i === 4) { url = CONFIG.addresses.MockUSDT;   data = sel.balanceOf + padAddr(CONFIG.addresses.Insurance); }
-                  else if (i === 5) { url = CONFIG.addresses.MockUSDT;   data = sel.balanceOf + padAddr(state.account); }
-                  else                { url = CONFIG.addresses.BCFToken;   data = sel.balanceOf + padAddr(state.account); }
-                  first[i] = await rawRpc("eth_call", [{ to: url, data }, "latest"]);
-                } catch (e) { console.warn("retry "+want[i]+" failed:", e.message?.slice(0,60)); }
-              }
+      // Sequential single calls. Slower than batching, but the user's network
+      // intermittently drops the last few items of multi-call batches. We use
+      // rawRpc() which has its own multi-RPC fallback, so each call has
+      // independent retry semantics.
+      const sel = {
+        getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
+        getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
+        getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
+        getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
+        pair:            "0x" + ethers.id("pair()").slice(2, 10),
+        balanceOf:       "0x" + ethers.id("balanceOf(address)").slice(2, 10),
+      };
+      const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
+      const padUint = (n) => n.toString(16).padStart(64, "0");
 
-              // [0] purchases, [1] pool, [2] price, [3] pair, [4] insPool
-              const invIface = new ethers.Interface(ABIS.Investment);
-              const poIface  = new ethers.Interface(ABIS.PriceOracle);
-              const usdtIface = new ethers.Interface(ABIS.MockUSDT);
+      const call = async (to, data, label) => {
+        try { return await rawRpc("eth_call", [{ to, data }, "latest"]); }
+        catch (e) { console.warn("call failed "+label+":", e.message?.slice(0,60)); return null; }
+      };
 
-              // Stats that don't need purchase details
-              if (first[1]) {
-                const el = document.getElementById("dashBcfPool");
-                const bal = new ethers.Interface(ABIS.Dashboard).decodeFunctionResult("getPoolBalance()", first[1])[0];
-                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-              }
-              if (first[2]) {
-                const el = document.getElementById("dashBcfPrice");
-                const timeEl = document.getElementById("dashBcfTime");
-                const srcEl = document.getElementById("dashBcfSource");
-                const p = poIface.decodeFunctionResult("getPrice()", first[2])[0];
-                if (el && p > 0n) {
-                  el.textContent = "$" + Number(ethers.formatUnits(p, 18)).toFixed(4);
-                  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
-                  if (srcEl) {
-                    const pairAddr = first[3] ? poIface.decodeFunctionResult("pair()", first[3])[0] : ethers.ZeroAddress;
-                    srcEl.textContent = (pairAddr && pairAddr !== ethers.ZeroAddress) ? "via PancakeSwap" : "via PriceOracle";
-                  }
-                }
-              }
-              if (first[4]) {
-                const el = document.getElementById("dashInsPool");
-                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[4])[0];
-                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-              }
-              // Wallet balances (same batch)
-              if (first[5]) {
-                const el = document.getElementById("dashUsdtBal");
-                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[5])[0];
-                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT";
-              }
-              if (first[6]) {
-                const el = document.getElementById("dashBcfBal");
-                const bal = usdtIface.decodeFunctionResult("balanceOf(address)", first[6])[0];
-                if (el) el.textContent = Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF";
-              }
+      const invIface = new ethers.Interface(ABIS.Investment);
+      const poIface  = new ethers.Interface(ABIS.PriceOracle);
+      const usdtIface = new ethers.Interface(ABIS.MockUSDT);
 
-              // Purchases: second batched round-trip
-              if (first[0]) {
-                const idList = invIface.decodeFunctionResult("getUserPurchases(address)", first[0]).map(n => Number(n));
-                if (idList.length > 0) {
-                  let results = await batchCalls(idList.map(id => ({
-                    to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(id),
-                  })));
-                  // Per-id retry for any null responses
-                  for (let i = 0; i < results.length; i++) {
-                    if (results[i]) continue;
-                    try {
-                      results[i] = await rawRpc("eth_call", [
-                        { to: CONFIG.addresses.Investment, data: sel.getPurchaseInfo + padUint(idList[i]) },
-                        "latest",
-                      ]);
-                    } catch (e) { console.warn("getPurchaseInfo("+idList[i]+") retry failed:", e.message?.slice(0,60)); }
-                  }
-                  const plans = results.map((r, i) => {
-                    if (!r) return null;
-                    try {
-                      const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
-                      return { id: idList[i], amount: d[2], active: d[7] };
-                    } catch { return null; }
-                  }).filter(Boolean);
-                  const active = plans.filter(p => p.active);
-                  const userTotal = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
-                  const el1 = document.getElementById("dashActivePlans");
-                  const el2 = document.getElementById("dashMyPurchase");
-                  const el3 = document.getElementById("dashMyReturn");
-                  if (el1) el1.textContent = active.length;
-                  if (el2) el2.textContent = userTotal.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                  if (el3) el3.textContent = (userTotal * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 });
-                } else {
-                  const el1 = document.getElementById("dashActivePlans");
-                  const el2 = document.getElementById("dashMyPurchase");
-                  const el3 = document.getElementById("dashMyReturn");
-                  if (el1) el1.textContent = "0";
-                  if (el2) el2.textContent = "0";
-                  if (el3) el3.textContent = "0";
-                }
+      // --- One read per stat, parallel via Promise.all (each is one HTTP request) ---
+      const [rawIds, rawPool, rawPrice, rawPair, rawInsBal, rawUsdtBal, rawBcfBal] = await Promise.all([
+        call(CONFIG.addresses.Investment,  sel.getUserPurchases + padAddr(state.account), "getUserPurchases"),
+        call(CONFIG.addresses.Dashboard,   sel.getPoolBalance, "getPoolBalance"),
+        call(CONFIG.addresses.PriceOracle, sel.getPrice, "getPrice"),
+        call(CONFIG.addresses.PriceOracle, sel.pair, "pair"),
+        call(CONFIG.addresses.MockUSDT,    sel.balanceOf + padAddr(CONFIG.addresses.Insurance), "balanceOf(ins)"),
+        call(CONFIG.addresses.MockUSDT,    sel.balanceOf + padAddr(state.account), "balanceOf(userUSDT)"),
+        call(CONFIG.addresses.BCFToken,    sel.balanceOf + padAddr(state.account), "balanceOf(userBCF)"),
+      ]);
+
+      const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+      if (rawPool) {
+        try { const bal = new ethers.Interface(ABIS.Dashboard).decodeFunctionResult("getPoolBalance()", rawPool)[0];
+          setText("dashBcfPool", Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }));
+        } catch (e) { console.warn("decode pool failed:", e.message?.slice(0,60)); }
+      }
+
+      if (rawPrice) {
+        try {
+          const p = poIface.decodeFunctionResult("getPrice()", rawPrice)[0];
+          if (p > 0n) {
+            setText("dashBcfPrice", "$" + Number(ethers.formatUnits(p, 18)).toFixed(4));
+            const tEl = document.getElementById("dashBcfTime");
+            if (tEl) tEl.textContent = new Date().toLocaleTimeString();
+            const sEl = document.getElementById("dashBcfSource");
+            if (sEl) {
+              let isPancake = false;
+              if (rawPair) {
+                try { const p = poIface.decodeFunctionResult("pair()", rawPair)[0];
+                  isPancake = p && p !== ethers.ZeroAddress; } catch {}
               }
-      } catch (e) {
-        console.error("Dashboard batch error:", e);
-        ["dashMyPurchase", "dashMyReturn", "dashBcfPrice"].forEach(id => {
-          const el = document.getElementById(id);
-          if (el && el.textContent === "\u23f3") el.textContent = "err";
-        });
+              sEl.textContent = isPancake ? "via PancakeSwap" : "via PriceOracle";
+            }
+          }
+        } catch (e) { console.warn("decode price failed:", e.message?.slice(0,60)); }
+      }
+
+      if (rawInsBal) {
+        try { const bal = usdtIface.decodeFunctionResult("balanceOf(address)", rawInsBal)[0];
+          setText("dashInsPool", Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }));
+        } catch (e) { console.warn("decode ins bal failed:", e.message?.slice(0,60)); }
+      }
+
+      if (rawUsdtBal) {
+        try { const bal = usdtIface.decodeFunctionResult("balanceOf(address)", rawUsdtBal)[0];
+          setText("dashUsdtBal", Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT");
+        } catch (e) { console.warn("decode usdt bal failed:", e.message?.slice(0,60)); }
+      }
+
+      if (rawBcfBal) {
+        try { const bal = usdtIface.decodeFunctionResult("balanceOf(address)", rawBcfBal)[0];
+          setText("dashBcfBal", Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF");
+        } catch (e) { console.warn("decode bcf bal failed:", e.message?.slice(0,60)); }
+      }
+
+      // --- Purchases: 1 call for IDs, then 1 call per ID ---
+      if (rawIds) {
+        let idList;
+        try {
+          idList = invIface.decodeFunctionResult("getUserPurchases(address)", rawIds)[0].map(n => Number(n));
+        } catch (e) { idList = []; }
+
+        if (idList.length > 0) {
+          // Sequential per-id calls. Each is independent — failures don't kill the rest.
+          const plans = [];
+          for (const id of idList) {
+            const r = await call(CONFIG.addresses.Investment, sel.getPurchaseInfo + padUint(id), "gpi#"+id);
+            if (!r) continue;
+            try {
+              const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+              plans.push({ id, amount: d[2], active: d[7] });
+            } catch (e) { console.warn("decode gpi#"+id+" failed:", e.message?.slice(0,60)); }
+          }
+          const active = plans.filter(p => p.active);
+          const total = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
+          setText("dashActivePlans", String(active.length));
+          setText("dashMyPurchase",  total.toLocaleString(undefined, { maximumFractionDigits: 0 }));
+          setText("dashMyReturn",    (total * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 }));
+        } else {
+          setText("dashActivePlans", "0");
+          setText("dashMyPurchase",  "0");
+          setText("dashMyReturn",    "0");
+        }
+      } else {
+        // Don't silently show "⏳" — show explicit error
+        setText("dashActivePlans", "—");
+        setText("dashMyPurchase",  "—");
+        setText("dashMyReturn",    "—");
       }
     }
     function renderDashboard() {
@@ -2505,26 +2492,5 @@ ${t.desc}</div>
 
     render();
   </script>
-
-<script data-minimax-analytics="minimax-website-analytics-v1">(function(){
-"use strict";
-var t="eyJ2IjoxLCJraWQiOiJwcmUtdXMtMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0NDcwNjIzMzYwOTA0NTkiLCJpc3N1ZWRfYXQiOjE3OTA2OTkwNTUyODR9.uOMuTpuqBeZna7jX3qsO42BwlVxpFZKiM1G2np4CYgQ",u="https://agent.minimax.io/minimax-cloud/api/v1/website-traffic/page-views",last="";
-function path(){
-var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
-p=p.split(/[?#]/,1)[0]||"/";
-if(p.charAt(0)!=="/")p="/"+p;
-p=p.replace(/\/+/g,"/").replace(/%([0-9a-fA-F]{2})/g,function(_,x){var c=String.fromCharCode(parseInt(x,16));return /[A-Za-z0-9._~-]/.test(c)?c:"%"+x.toUpperCase();});
-if(p.length>1)p=p.replace(/\/+$/,"");
-return p||"/";
-}
-function send(){
-var p=path();if(p===last)return;last=p;
-var b="v=1&t="+encodeURIComponent(t)+"&p="+encodeURIComponent(p),ok=false;
-try{if(navigator.sendBeacon){ok=navigator.sendBeacon(u,new Blob([b],{type:"application/x-www-form-urlencoded;charset=UTF-8"}));}}catch(e){}
-if(!ok){try{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors",credentials:"omit",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"}});}catch(e){}}
-}
-["pushState","replaceState"].forEach(function(n){var f=history[n];if(!f)return;history[n]=function(){var r=f.apply(this,arguments);setTimeout(send,0);return r;};});
-window.addEventListener("popstate",send);window.addEventListener("hashchange",send);send();
-})();</script>
 </body>
 </html>
