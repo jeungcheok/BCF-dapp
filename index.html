@@ -233,7 +233,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V61</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V62</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -1000,7 +1000,7 @@
               let isPancake = false;
               if (rawPair) {
                 try { const p = poIface.decodeFunctionResult("pair()", rawPair)[0];
-                  isPancake = p && p !== ethers.ZeroAddress; } catch {}
+                  isPancake = p && p !== ethers.ZeroAddress; } catch (e) {}
               }
               sEl.textContent = isPancake ? "via PancakeSwap" : "via PriceOracle";
             }
@@ -1651,21 +1651,17 @@ ${t.desc}</div>
           const invIface = new ethers.Interface(ABIS.Investment);
           const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
           const padUint = (n) => n.toString(16).padStart(64, "0");
-          const r1 = await batchCalls([
-            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account) },
-          ]);
-          const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
+          const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
+          const idsRaw = await call(CONFIG.addresses.Investment, "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account));
+          const idList = idsRaw ? invIface.decodeFunctionResult("getUserPurchases(address)", idsRaw)[0].map(n => Number(n)) : [];
           const eligible = [];
-          if (idList.length > 0) {
-            const r2 = await batchCalls(idList.map(id => ({
-              to: CONFIG.addresses.Investment,
-              data: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint(id),
-            })));
-            r2.forEach((raw, i) => {
-              if (!raw) return;
-              const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", raw);
-              if (p[7]) eligible.push({ id: idList[i], planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
-            });
+          for (const id of idList) {
+            const r = await call(CONFIG.addresses.Investment, "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint(id));
+            if (!r) continue;
+            try {
+              const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            } catch (e) {}
           }
           claimInsDash.disabled = false;
           claimInsDash.textContent = "Claim";
@@ -1796,54 +1792,37 @@ ${t.desc}</div>
             const selIds = "0x" + ethers.id("getUserPurchases(address)").slice(2, 10);
             const selInfo = "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10);
             const selPol = "0x" + ethers.id("getPolicy(uint256)").slice(2, 10);
+            const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
+            const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
 
-            // Round-trip 1: purchase IDs
-            const r1 = await batchCalls([
-              { to: CONFIG.addresses.Investment, data: selIds + padAddr(state.account) },
-            ]);
-            const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
+            const r1 = await call(CONFIG.addresses.Investment, selIds + padAddr(state.account));
+            const idList = r1 ? invIface.decodeFunctionResult("getUserPurchases(address)", r1)[0].map(n => Number(n)) : [];
 
             const rows = [];
             let totalActive = 0;
             let firstStart = 0;
-            if (idList.length > 0) {
-              // Round-trip 2: purchase info + policy, both in ONE batch
-              const calls = [];
-              idList.forEach(id => {
-                calls.push({ to: CONFIG.addresses.Investment, data: selInfo + padUint(id) });
-                calls.push({ to: CONFIG.addresses.Insurance,  data: selPol  + padUint(id) });
+            for (const id of idList) {
+              const [pRaw, polRaw] = await Promise.all([
+                call(CONFIG.addresses.Investment, selInfo + padUint(id)),
+                call(CONFIG.addresses.Insurance,  selPol  + padUint(id)),
+              ]);
+              if (!pRaw) continue;
+              const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", pRaw);
+              if (!p[7]) continue;
+              const policy = polRaw ? insIface.decodeFunctionResult("getPolicy(uint256)", polRaw) : null;
+              const activated = policy ? policy[0] != 0n : false;
+              let protection = "0";
+              if (activated && policy && !policy[3]) {
+                const protRaw = await call(CONFIG.addresses.Insurance, selProt + padUint(id));
+                if (protRaw) protection = ethers.formatUnits(insIface.decodeFunctionResult("getProtectionAmount(uint256)", protRaw)[0], 18);
+              }
+              rows.push({
+                id, planId: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18),
+                activated, claimed: policy ? policy[3] : false,
+                protection,
               });
-              const r2 = await batchCalls(calls);
-              // Round-trip 3: protection amounts for activated policies only
-              const activatedIdx = [];
-              for (let i = 0; i < idList.length; i++) {
-                const pRaw = r2[i * 2], polRaw = r2[i * 2 + 1];
-                if (!pRaw) continue;
-                const p = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", pRaw);
-                if (!p[7]) continue;
-                const policy = polRaw ? insIface.decodeFunctionResult("getPolicy(uint256)", polRaw) : null;
-                const activated = policy ? policy[0] != 0n : false;
-                if (activated) activatedIdx.push({ i, id: idList[i] });
-                rows.push({
-                  id: idList[i], planId: Number(p[1]), amountStr: ethers.formatUnits(p[2], 18),
-                  activated, claimed: policy ? policy[3] : false,
-                  protection: "0",
-                });
-                if (activated && policy && !policy[3]) totalActive++;
-                if (firstStart === 0 && p[3] > 0n) firstStart = Number(p[3]);
-              }
-              if (activatedIdx.length > 0) {
-                const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
-                const r3 = await batchCalls(activatedIdx.map(x => ({
-                  to: CONFIG.addresses.Insurance, data: selProt + padUint(x.id),
-                })));
-                r3.forEach((raw, k) => {
-                  if (!raw) return;
-                  const amt = insIface.decodeFunctionResult("getProtectionAmount(uint256)", raw)[0];
-                  const row = rows.find(r => r.id === activatedIdx[k].id);
-                  if (row) row.protection = ethers.formatUnits(amt, 18);
-                });
-              }
+              if (activated && policy && !policy[3]) totalActive++;
+              if (firstStart === 0 && p[3] > 0n) firstStart = Number(p[3]);
             }
             if (rows.length === 0) {
               listBody.innerHTML = '<p style="color:var(--muted);text-align:center;padding:14px 0;">No plans found. Buy a plan first.</p>';
@@ -1897,17 +1876,18 @@ ${t.desc}</div>
               getPrice: "0x" + ethers.id("getPrice()").slice(2, 10),
             };
             const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
-            const res = await batchCalls([
-              { to: CONFIG.addresses.MockUSDT,    data: sel.balanceOf + padAddr(state.account) },
-              { to: CONFIG.addresses.BCFToken,    data: sel.balanceOf + padAddr(state.account) },
-              { to: CONFIG.addresses.Operations,  data: sel.getUSDTPoolBalance },
-              { to: CONFIG.addresses.PriceOracle, data: sel.getPrice },
+            const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
+            const [usdtR, bcfR, poolR, priceR] = await Promise.all([
+              call(CONFIG.addresses.MockUSDT,    sel.balanceOf + padAddr(state.account)),
+              call(CONFIG.addresses.BCFToken,    sel.balanceOf + padAddr(state.account)),
+              call(CONFIG.addresses.Operations,  sel.getUSDTPoolBalance),
+              call(CONFIG.addresses.PriceOracle, sel.getPrice),
             ]);
             const balOf = new ethers.Interface(ABIS.MockUSDT).decodeFunctionResult.bind(new ethers.Interface(ABIS.MockUSDT));
-            const usdtBal = res[0] ? balOf("balanceOf(address)", res[0])[0] : 0n;
-            const bcfBal  = res[1] ? balOf("balanceOf(address)", res[1])[0] : 0n;
-            const poolBal = res[2] ? new ethers.Interface(ABIS.Operations).decodeFunctionResult("getUSDTPoolBalance()", res[2])[0] : 0n;
-            const priceWei = res[3] ? new ethers.Interface(ABIS.PriceOracle).decodeFunctionResult("getPrice()", res[3])[0] : 0n;
+            const usdtBal = usdtR ? balOf("balanceOf(address)", usdtR)[0] : 0n;
+            const bcfBal  = bcfR  ? balOf("balanceOf(address)", bcfR)[0] : 0n;
+            const poolBal = poolR ? new ethers.Interface(ABIS.Operations).decodeFunctionResult("getUSDTPoolBalance()", poolR)[0] : 0n;
+            const priceWei = priceR ? new ethers.Interface(ABIS.PriceOracle).decodeFunctionResult("getPrice()", priceR)[0] : 0n;
 
             const usdtEl = document.getElementById("redeemUsdtBal");
             const bcfEl = document.getElementById("redeemBcfBal");
@@ -1941,34 +1921,32 @@ ${t.desc}</div>
             const padUint = (n) => n.toString(16).padStart(64, "0");
             const iface = new ethers.Interface(ABIS.Investment);
 
-            // Round-trip 1: get purchase IDs
-            const r1 = await batchCalls([
-              { to: CONFIG.addresses.Investment, data: selGetUser + padAddr(state.account) },
-            ]);
-            if (!r1[0]) throw new Error("no response from RPC");
-            const ids = iface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n));
+            // Sequential single calls (same pattern as loadDashboardData — see V61 notes)
+            const call = async (to, data) => {
+              try { return await rawRpc("eth_call", [{ to, data }, "latest"]); }
+              catch (e) { return null; }
+            };
 
-            // Round-trip 2: all purchase details in ONE batch
-            let userPlans = [];
-            if (ids.length > 0) {
-              const r2 = await batchCalls(ids.map(id => ({
-                to: CONFIG.addresses.Investment, data: selGetInfo + padUint(id),
-              })));
-              userPlans = r2.map((r, i) => {
-                if (!r) return null;
-                try {
-                  const p = iface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
-                  return {
-                    id: ids[i],
-                    planId: Number(p[1]),
-                    amountStr: ethers.formatUnits(p[2], 18),
-                    start: Number(p[3]),
-                    monthsCompleted: Number(p[6]),
-                    active: p[7],
-                    planName: ["A", "B", "C"][Number(p[1])] || "?",
-                  };
-                } catch { return null; }
-              }).filter(Boolean);
+            const rawIds = await call(CONFIG.addresses.Investment, selGetUser + padAddr(state.account));
+            if (!rawIds) throw new Error("getUserPurchases failed");
+            const ids = iface.decodeFunctionResult("getUserPurchases(address)", rawIds)[0].map(n => Number(n));
+
+            const userPlans = [];
+            for (const id of ids) {
+              const r = await call(CONFIG.addresses.Investment, selGetInfo + padUint(id));
+              if (!r) continue;
+              try {
+                const p = iface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+                userPlans.push({
+                  id,
+                  planId: Number(p[1]),
+                  amountStr: ethers.formatUnits(p[2], 18),
+                  start: Number(p[3]),
+                  monthsCompleted: Number(p[6]),
+                  active: p[7],
+                  planName: ["A", "B", "C"][Number(p[1])] || "?",
+                });
+              } catch (e) {}
             }
 
             if (totalEl) {
@@ -2140,21 +2118,18 @@ ${t.desc}</div>
           const invIface2 = new ethers.Interface(ABIS.Investment);
           const padAddr2 = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
           const padUint2 = (n) => n.toString(16).padStart(64, "0");
-          const rA = await batchCalls([
-            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr2(state.account) },
-          ]);
-          const idList = rA[0] ? invIface2.decodeFunctionResult("getUserPurchases(address)", rA[0]).map(n => Number(n)) : [];
+
+          const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
+          const idsR = await call(CONFIG.addresses.Investment, "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr2(state.account));
+          const idList = idsR ? invIface2.decodeFunctionResult("getUserPurchases(address)", idsR)[0].map(n => Number(n)) : [];
           const eligible = [];
-          if (idList.length > 0) {
-            const rB = await batchCalls(idList.map(id => ({
-              to: CONFIG.addresses.Investment,
-              data: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint2(id),
-            })));
-            rB.forEach((raw, i) => {
-              if (!raw) return;
-              const p = invIface2.decodeFunctionResult("getPurchaseInfo(uint256)", raw);
-              if (p[7]) eligible.push({ id: idList[i], planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
-            });
+          for (const id of idList) {
+            const r = await call(CONFIG.addresses.Investment, "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10) + padUint2(id));
+            if (!r) continue;
+            try {
+              const p = invIface2.decodeFunctionResult("getPurchaseInfo(uint256)", r);
+              if (p[7]) eligible.push({ id, planId: Number(p[1]), amount: ethers.formatUnits(p[2], 18) });
+            } catch (e) {}
           }
           claimInsPage.disabled = false;
           claimInsPage.textContent = "Activate Insurance";
@@ -2185,39 +2160,36 @@ ${t.desc}</div>
           const invIface = new ethers.Interface(ABIS.Investment);
           const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
           const padUint = (n) => n.toString(16).padStart(64, "0");
-          const r1 = await batchCalls([
-            { to: CONFIG.addresses.Investment, data: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account) },
-          ]);
-          const idList = r1[0] ? invIface.decodeFunctionResult("getUserPurchases(address)", r1[0]).map(n => Number(n)) : [];
+          const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
+          const selPol = "0x" + ethers.id("getPolicy(uint256)").slice(2, 10);
+          const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
+          const idsR = await call(CONFIG.addresses.Investment, "0x" + ethers.id("getUserPurchases(address)").slice(2, 10) + padAddr(state.account));
+          const idList = idsR ? invIface.decodeFunctionResult("getUserPurchases(address)", idsR)[0].map(n => Number(n)) : [];
           let claimed = false;
-          if (idList.length > 0) {
-            // batch: policies + protection amounts
-            const selPol = "0x" + ethers.id("getPolicy(uint256)").slice(2, 10);
-            const selProt = "0x" + ethers.id("getProtectionAmount(uint256)").slice(2, 10);
-            const r2 = await batchCalls(idList.flatMap(id => [
-              { to: CONFIG.addresses.Insurance, data: selPol + padUint(id) },
-              { to: CONFIG.addresses.Insurance, data: selProt + padUint(id) },
-            ]));
-            const pending = [];
-            for (let i = 0; i < idList.length; i++) {
-              const polRaw = r2[i * 2], protRaw = r2[i * 2 + 1];
-              if (!polRaw) continue;
+          const pending = [];
+          for (const id of idList) {
+            const polRaw = await call(CONFIG.addresses.Insurance, selPol + padUint(id));
+            if (!polRaw) continue;
+            try {
               const policy = insIface.decodeFunctionResult("getPolicy(uint256)", polRaw);
               if (policy[0] != 0n && !policy[3]) {
-                const protection = protRaw ? insIface.decodeFunctionResult("getProtectionAmount(uint256)", protRaw)[0] : 0n;
-                if (Number(protection) > 0) pending.push({ id: idList[i], protection });
+                const protRaw = await call(CONFIG.addresses.Insurance, selProt + padUint(id));
+                if (protRaw) {
+                  const protection = insIface.decodeFunctionResult("getProtectionAmount(uint256)", protRaw)[0];
+                  if (Number(protection) > 0) pending.push({ id, protection });
+                }
               }
-            }
-            for (const item of pending) {
-              const ok = confirm(`Claim protection for Plan #${item.id}?\n\nProtection amount: ${ethers.formatUnits(item.protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
-              if (ok) {
-                claimInsProtect.textContent = "⏳ Claiming #" + item.id + "...";
-                const tx = await insC.claimInsurance(item.id);
-                await tx.wait();
-                alert(`✅ Claimed protection for Plan #${item.id}!\nTx: ${tx.hash}`);
-                claimed = true;
-                break;
-              }
+            } catch (e) {}
+          }
+          for (const item of pending) {
+            const ok = confirm(`Claim protection for Plan #${item.id}?\n\nProtection amount: ${ethers.formatUnits(item.protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
+            if (ok) {
+              claimInsProtect.textContent = "⏳ Claiming #" + item.id + "...";
+              const tx = await insC.claimInsurance(item.id);
+              await tx.wait();
+              alert(`✅ Claimed protection for Plan #${item.id}!\nTx: ${tx.hash}`);
+              claimed = true;
+              break;
             }
           }
           if (!claimed) alert("No claimable insurance policies found. (Note: insurance pool may be empty.)");
@@ -2286,15 +2258,15 @@ ${t.desc}</div>
       if (route === "node" && state.account && state.deployed) {
         (async () => {
           try {
-            // Single batched round-trip: node info + USDT balance
             const padAddr = (a) => a.toLowerCase().replace("0x", "").padStart(64, "0");
-            const res = await batchCalls([
-              { to: CONFIG.addresses.Node,     data: "0x" + ethers.id("getNodeInfo(address)").slice(2, 10) + padAddr(state.account) },
-              { to: CONFIG.addresses.MockUSDT, data: "0x" + ethers.id("balanceOf(address)").slice(2, 10) + padAddr(state.account) },
+            const call = async (to, data) => { try { return await rawRpc("eth_call", [{ to, data }, "latest"]); } catch { return null; } };
+            const [nodeR, usdtR] = await Promise.all([
+              call(CONFIG.addresses.Node,     "0x" + ethers.id("getNodeInfo(address)").slice(2, 10) + padAddr(state.account)),
+              call(CONFIG.addresses.MockUSDT, "0x" + ethers.id("balanceOf(address)").slice(2, 10) + padAddr(state.account)),
             ]);
             const nodeIface = new ethers.Interface(ABIS.Node);
             const usdtIface = new ethers.Interface(ABIS.MockUSDT);
-            const info = res[0] ? nodeIface.decodeFunctionResult("getNodeInfo(address)", res[0]) : null;
+            const info = nodeR ? nodeIface.decodeFunctionResult("getNodeInfo(address)", nodeR) : null;
             if (!info) throw new Error("no node data");
 
             // struct: (tier, amountU, shares, joinAt, baseRewardClaimed, bonusClaimed)
@@ -2323,8 +2295,8 @@ ${t.desc}</div>
             }
 
             // USDT balance (same batch)
-            if (res[1]) {
-              const bal = usdtIface.decodeFunctionResult("balanceOf(address)", res[1])[0];
+            if (usdtR) {
+              const bal = usdtIface.decodeFunctionResult("balanceOf(address)", usdtR)[0];
               const balEl = document.getElementById("nodeBalanceUsdt");
               if (balEl) balEl.textContent = `Balance: ${Number(ethers.formatUnits(bal, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`;
             }
