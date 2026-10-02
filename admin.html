@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>BCF Admin</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+  <style>
+    :root { --bg:#0a0a0a; --card:#131313; --card2:#1a1a1a; --elev:#1f1f1f; --fg:#fff; --muted:#9ca3af; --gold:#fbbf24; --gold2:#f59e0b; --gb:rgba(251,191,36,.4); --green:#10b981; --red:#ef4444; --border:rgba(255,255,255,.08); }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html,body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; min-height:100vh; overflow-x:hidden; }
+    a { color:var(--gold); text-decoration:none; } a:hover { text-decoration:underline; }
+    .top { position:sticky; top:0; z-index:20; background:rgba(10,10,10,.92); backdrop-filter:blur(10px); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    .brand { font-weight:800; letter-spacing:1px; } .brand small { color:var(--gold); font-size:.65rem; display:block; letter-spacing:2px; }
+    .wrap { max-width:1100px; margin:0 auto; padding:16px 16px calc(60px + env(safe-area-inset-bottom,0px)); }
+    .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+    @media (max-width:820px){ .grid { grid-template-columns:1fr; } }
+    .card { background:var(--card); border:1px solid var(--gb); border-radius:12px; padding:16px; }
+    .card.full { grid-column:1/-1; }
+    h2 { font-size:1rem; color:var(--gold); margin-bottom:12px; }
+    h3 { font-size:.85rem; margin:14px 0 8px; color:var(--muted); font-weight:600; }
+    label { display:block; font-size:.78rem; color:var(--muted); margin:8px 0 4px; }
+    input,select,textarea { width:100%; padding:11px 12px; background:var(--card2); border:1px solid var(--border); border-radius:8px; color:var(--fg); font-size:16px; font-family:inherit; }
+    input:focus,textarea:focus,select:focus { outline:none; border-color:var(--gold); }
+    textarea { min-height:84px; resize:vertical; font-family:monospace; font-size:13px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .row > * { flex:1 1 140px; }
+    button { font-family:inherit; cursor:pointer; border:0; border-radius:8px; padding:11px 14px; font-weight:700; font-size:.85rem; background:var(--gold2); color:#0a0a0a; min-height:42px; }
+    button:hover { background:var(--gold); } button:disabled { opacity:.45; cursor:not-allowed; }
+    button.ghost { background:var(--card2); color:var(--fg); border:1px solid var(--border); }
+    button.danger { background:var(--red); color:#fff; }
+    .kv { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border); font-size:.85rem; }
+    .kv:last-child { border-bottom:0; } .kv span:first-child { color:var(--muted); } .kv span:last-child { font-weight:700; text-align:right; word-break:break-all; }
+    .ok { color:var(--green); } .bad { color:var(--red); } .gold { color:var(--gold); }
+    .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.7rem; font-weight:700; background:var(--elev); }
+    .notice { background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.3); color:#93c5fd; padding:10px 12px; border-radius:8px; font-size:.8rem; margin:10px 0; line-height:1.5; }
+    .warn { background:rgba(245,158,11,.08); border-color:rgba(245,158,11,.35); color:var(--gold); }
+    table { width:100%; border-collapse:collapse; font-size:.8rem; } th,td { padding:8px 6px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; } th { color:var(--muted); font-weight:500; }
+    .scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    #toast { position:fixed; left:12px; right:12px; bottom:calc(14px + env(safe-area-inset-bottom,0px)); background:#111; border:1px solid var(--gb); border-radius:10px; padding:12px 14px; font-size:.82rem; display:none; z-index:50; word-break:break-all; max-height:40vh; overflow:auto; }
+    #toast.bad { border-color:var(--red); } #toast.good { border-color:var(--green); }
+    .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; } .tabs button { flex:0 0 auto; }
+    .tabs button.active { background:var(--gold); }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><small>BCF</small>ADMIN PANEL</div>
+  <div class="row" style="flex:0 1 auto;">
+    <a href="/" style="padding:10px 8px;">← DApp</a>
+    <button id="connectBtn" style="flex:0 0 auto;">Connect Wallet</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="gate" class="notice warn">Connect the owner wallet to use this panel. Read-only data loads without a wallet; every write is also enforced on-chain (<code>onlyOwner</code>), so this page cannot be abused by anyone else.</div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="tokens" class="ghost">Test Tokens</button>
+    <button data-tab="pools" class="ghost">Pools</button>
+    <button data-tab="settings" class="ghost">Price · Wallets · Time</button>
+    <button data-tab="levels" class="ghost">Referral Levels</button>
+    <button data-tab="members" class="ghost">Members</button>
+  </div>
+
+  <!-- ===== Overview ===== -->
+  <div id="tab-overview" class="grid">
+    <div class="card"><h2>Connection</h2><div id="connInfo"></div></div>
+    <div class="card"><h2>Balances & Prices</h2><div id="balInfo"><span class="gold">Loading…</span></div></div>
+    <div class="card full"><h2>Contracts & Owners</h2><div class="scroll"><table><thead><tr><th>Contract</th><th>Address</th><th>Owner</th><th>You</th></tr></thead><tbody id="ownerRows"></tbody></table></div></div>
+  </div>
+
+  <!-- ===== Test tokens ===== -->
+  <div id="tab-tokens" class="grid hidden">
+    <div class="card">
+      <h2>Mint USDT to a member</h2>
+      <p class="notice">MockUSDT is owner-mint. Use this to give testers USDT on any account.</p>
+      <label>Member address</label><input id="mintTo" placeholder="0x…" />
+      <label>Amount (USDT)</label><input id="mintAmt" type="number" value="10000" />
+      <div class="row" style="margin-top:10px;"><button id="btnMint">Mint to member</button><button id="btnMintSelf" class="ghost">Mint to me</button></div>
+    </div>
+    <div class="card">
+      <h2>Mint USDT to many members</h2>
+      <label>One address per line</label><textarea id="bulkAddrs" placeholder="0x…&#10;0x…"></textarea>
+      <label>Amount each (USDT)</label><input id="bulkAmt" type="number" value="10000" />
+      <div class="row" style="margin-top:10px;"><button id="btnBulk">Mint to all</button></div>
+    </div>
+    <div class="card">
+      <h2>Send USDT from my wallet</h2>
+      <label>Member address</label><input id="sendUsdtTo" placeholder="0x…" />
+      <label>Amount (USDT)</label><input id="sendUsdtAmt" type="number" value="1000" />
+      <div class="row" style="margin-top:10px;"><button id="btnSendUsdt">Send USDT</button></div>
+    </div>
+    <div class="card">
+      <h2>Send BCF from my wallet</h2>
+      <p class="notice">Useful for testing Redeem / Insurance without buying a plan. The owner wallet is fee-exempt.</p>
+      <label>Member address</label><input id="sendBcfTo" placeholder="0x…" />
+      <label>Amount (BCF)</label><input id="sendBcfAmt" type="number" value="1000" />
+      <div class="row" style="margin-top:10px;"><button id="btnSendBcf">Send BCF</button></div>
+    </div>
+  </div>
+
+  <!-- ===== Pools ===== -->
+  <div id="tab-pools" class="grid hidden">
+    <div class="card">
+      <h2>Fund Insurance Pool (USDT)</h2>
+      <p class="notice">Pays claim payouts first; if short, the Operations pool covers the difference.</p>
+      <label>Amount (USDT)</label><input id="fundInsAmt" type="number" value="5000" />
+      <div class="row" style="margin-top:10px;"><button id="btnFundIns">Approve + Fund Insurance</button></div>
+    </div>
+    <div class="card">
+      <h2>Fund Operations USDT Pool</h2>
+      <p class="notice">Backs monthly returns, redemptions and reward payouts.</p>
+      <label>Amount (USDT)</label><input id="fundOpsAmt" type="number" value="50000" />
+      <div class="row" style="margin-top:10px;"><button id="btnFundOps">Approve + Fund Operations</button></div>
+    </div>
+    <div class="card">
+      <h2>Send BCF to a protocol contract</h2>
+      <p class="notice">Node needs its own BCF balance to pay Node rewards. Operations holds the BCF pool for buy/swap.</p>
+      <label>Target</label>
+      <select id="bcfTarget"><option value="Node">Node (reward BCF)</option><option value="Operations">Operations (BCF pool)</option></select>
+      <label>Amount (BCF)</label><input id="bcfTargetAmt" type="number" value="100000" />
+      <div class="row" style="margin-top:10px;"><button id="btnBcfTarget">Send BCF</button></div>
+    </div>
+    <div class="card">
+      <h2>Withdraw from Operations (owner)</h2>
+      <label>Token</label><select id="wdToken"><option value="USDT">USDT</option><option value="BCF">BCF</option></select>
+      <label>To address</label><input id="wdTo" placeholder="0x…" />
+      <label>Amount</label><input id="wdAmt" type="number" value="0" />
+      <div class="row" style="margin-top:10px;"><button id="btnWd" class="danger">Withdraw</button></div>
+    </div>
+  </div>
+
+  <!-- ===== Settings ===== -->
+  <div id="tab-settings" class="grid hidden">
+    <div class="card">
+      <h2>BCF price</h2>
+      <div id="priceInfo"></div>
+      <label>Operations.bcfPrice (USDT per BCF, owner reference)</label><input id="newOpsPrice" type="number" step="0.0001" placeholder="0.1311" />
+      <div class="row" style="margin-top:8px;"><button id="btnOpsPrice">Set Operations price</button></div>
+      <label>PriceOracle manual price (used when no PancakeSwap pair is set)</label><input id="newOraclePrice" type="number" step="0.0001" placeholder="0.1311" />
+      <div class="row" style="margin-top:8px;"><button id="btnOraclePrice">Set Oracle manual price</button></div>
+      <label>PancakeSwap pair address (0x000…0 to switch back to manual)</label><input id="pairAddr" placeholder="0x…" />
+      <div class="row" style="margin-top:8px;"><select id="pairToken0"><option value="true">BCF is token0</option><option value="false">BCF is token1</option></select><button id="btnPair">Set pair</button></div>
+      <p class="notice">Operations uses the safer of <code>bcfPrice</code> and the oracle: lower when paying USDT out (redeem/rewards), higher when handing BCF out (buy). Keep <code>bcfPrice</code> close to market.</p>
+    </div>
+    <div class="card">
+      <h2>Time unit (1 month = ?)</h2>
+      <div id="timeInfo"></div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnTime1m" class="ghost">1 minute</button><button id="btnTime1h" class="ghost">1 hour</button>
+        <button id="btnTime1d" class="ghost">1 day</button><button id="btnTime30d" class="ghost">30 days (production)</button>
+      </div>
+      <label>Custom seconds</label><input id="timeCustom" type="number" placeholder="86400" />
+      <div class="row" style="margin-top:8px;"><button id="btnTimeCustom">Apply to Investment + Node + Insurance</button></div>
+    </div>
+    <div class="card">
+      <h2>Fee & fund wallets</h2>
+      <div id="walletInfo"></div>
+      <label>Setting</label>
+      <select id="walletKey">
+        <option value="Operations.providerWallet">Redeem fee → Provider (6% BCF) · Operations</option>
+        <option value="Operations.companyFeeWallet">Redeem fee → Company (4% USDT) · Operations</option>
+        <option value="Investment.investmentFund">Plan purchase 30% → Investment Fund · Investment</option>
+        <option value="Investment.marketingFund">Plan purchase 20% → Marketing · Investment</option>
+        <option value="Node.investmentFund">Node purchase 90% → Investment Fund · Node</option>
+      </select>
+      <label>New address</label><input id="walletAddr" placeholder="0x…" />
+      <div class="row" style="margin-top:8px;"><button id="btnWallet">Update wallet</button></div>
+      <p class="notice warn">Set Investment Fund / Node Fund to the <b>Operations</b> address if you want those funds to back payouts.</p>
+    </div>
+    <div class="card">
+      <h2>Authorizations (one-time setup check)</h2>
+      <div id="authInfo"></div>
+      <div class="row" style="margin-top:10px;"><button id="btnAuthFix">Apply missing authorizations</button></div>
+    </div>
+  </div>
+
+  <!-- ===== Levels ===== -->
+  <div id="tab-levels" class="grid hidden">
+    <div class="card full">
+      <h2>Referral V-levels (differential rewards)</h2>
+      <p class="notice">Team reward uses a differential system: each upline with a level only earns <i>(own rate − highest rate already paid below)</i>. Rates must <b>increase</b> with level for higher levels to earn more. Total referral payout per purchase is capped at 35%.</p>
+      <div class="scroll"><table><thead><tr><th>Level</th><th>Team volume threshold (USDT)</th><th>Rate</th></tr></thead><tbody id="levelRows"></tbody></table></div>
+      <h3>Edit a level</h3>
+      <div class="row"><input id="lvNum" type="number" min="1" max="10" placeholder="Level (1-10)" /><input id="lvThreshold" type="number" placeholder="Threshold USDT" /><input id="lvPct" type="number" step="0.01" placeholder="Rate % (e.g. 1.5)" /><button id="btnLevel">Save level</button></div>
+    </div>
+  </div>
+
+  <!-- ===== Members ===== -->
+  <div id="tab-members" class="grid hidden">
+    <div class="card full">
+      <h2>Member lookup</h2>
+      <div class="row"><input id="memAddr" placeholder="Member address 0x…" style="flex:3 1 260px;" /><button id="btnMem">Look up</button></div>
+      <div id="memOut" style="margin-top:12px;"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const CONFIG = {
+  chainId: 97, rpcUrl: "https://bsc-testnet-rpc.publicnode.com", explorer: "https://testnet.bscscan.com",
+  // Keep in sync with index.html after every redeploy
+  addresses: {
+    BCFToken:    "0xDF240F95B78CB71e01Bb986d59d6a1aC26Fd153D",
+    MockUSDT:    "0xaF6463ceB67D0429B772cBa197bcD32b28c5f0C8",
+    Operations:  "0x89c07428e233695A7327A09ABa1abdd04395029c",
+    Investment:  "0x2707C484062b8B6208e30A22c68bdf3B10475BEd",
+    Node:        "0x6f5318930e4AB1A56AAA4a47E806Adec96bCf2BE",
+    Referral:    "0x7a05cdBB394020f38F46eEFC1dC646753eE3CEBa",
+    Insurance:   "0xabA0434c0F4510f5CA5376e3CFDC9C0B4deA1C53",
+    PriceOracle: "0xE64B01e52E8Ea13C06e920B51364ba80940137C1",
+  },
+};
+const OWN = "function owner() view returns (address)";
+const ABIS = {
+  BCFToken: [OWN, "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)", "function totalSupply() view returns (uint256)", "function isExemptFromFees(address) view returns (bool)", "function setExemptFromFees(address,bool)", "function liquidityPool() view returns (address)"],
+  MockUSDT: [OWN, "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)", "function approve(address,uint256) returns (bool)", "function mint(address,uint256)"],
+  Operations: [OWN, "function bcfPrice() view returns (uint256)", "function setBCFPrice(uint256)", "function getRedeemPrice() view returns (uint256)", "function getBuyPrice() view returns (uint256)", "function getUSDTPoolBalance() view returns (uint256)", "function getPoolBalance() view returns (uint256)", "function fundUSDTPool(uint256)", "function getCredit(address) view returns (uint256)", "function transferFunds(address,uint256)", "function transferUSDTFunds(address,uint256)", "function providerWallet() view returns (address)", "function companyFeeWallet() view returns (address)", "function setProviderWallet(address)", "function setCompanyFeeWallet(address)", "function investmentContract() view returns (address)", "function setInvestmentContract(address)", "function referralContract() view returns (address)", "function setReferralContract(address)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
+  Investment: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function marketingFund() view returns (address)", "function setInvestmentFund(address)", "function setMarketingFund(address)", "function getUserPurchases(address) view returns (uint256[])", "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint256,uint256,uint256,bool)", "function bcfIssued(uint256) view returns (uint256)", "function insuranceContract() view returns (address)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
+  Node: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function setInvestmentFund(address)", "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
+  Insurance: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function fund(uint256)", "function getPolicy(uint256) view returns (uint256,uint256,uint256,bool)", "function getProtectionAmount(uint256) view returns (uint256)"],
+  Referral: [OWN, "function users(address) view returns (address,uint256,uint256,uint256,uint8,uint256,uint256,bool)", "function levelConfigs(uint8) view returns (uint256,uint16)", "function setLevelConfig(uint8,uint256,uint16)", "function investmentContract() view returns (address)", "function setInvestmentContract(address)", "function operationsContract() view returns (address)", "function setOperationsContract(address)"],
+  PriceOracle: [OWN, "function getPrice() view returns (uint256)", "function manualPriceU() view returns (uint256)", "function setManualPrice(uint256)", "function pair() view returns (address)", "function setPair(address,bool)"],
+};
+const OWNED = ["MockUSDT","BCFToken","Operations","Investment","Node","Insurance","Referral","PriceOracle"];
+const ZERO = ethers.ZeroAddress;
+let provider = null, signer = null, account = null;
+const readProvider = new ethers.JsonRpcProvider(CONFIG.rpcUrl, { chainId: CONFIG.chainId, name: "bsc-testnet" }, { staticNetwork: true });
+const $ = (id) => document.getElementById(id);
+const C = (name, write) => new ethers.Contract(CONFIG.addresses[name], ABIS[name], write ? signer : readProvider);
+const fmt = (w, d = 2) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { maximumFractionDigits: d });
+const short = (a) => a ? a.slice(0, 6) + "…" + a.slice(-4) : "—";
+const link = (a) => `<a href="${CONFIG.explorer}/address/${a}" target="_blank" rel="noopener">${short(a)}</a>`;
+const isAddr = (a) => /^0x[a-fA-F0-9]{40}$/.test((a || "").trim());
+const safe = async (p, d = null) => { try { return await p; } catch (e) { return d; } };
+let owners = {};
+
+function toast(msg, kind) { const t = $("toast"); t.className = kind || ""; t.innerHTML = msg; t.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", kind === "bad" ? 9000 : 6000); }
+const errMsg = (e) => (e.reason || e.shortMessage || e.message || String(e)).slice(0, 220);
+
+async function connect() {
+  if (!window.ethereum) { toast("No wallet found. On mobile open this page inside the MetaMask app browser.", "bad"); return; }
+  try {
+    const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+    provider = new ethers.BrowserProvider(window.ethereum);
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== CONFIG.chainId) {
+      try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x61" }] }); }
+      catch (e) { toast("Please switch your wallet to BSC Testnet (chainId 97).", "bad"); return; }
+      provider = new ethers.BrowserProvider(window.ethereum);
+    }
+    signer = await provider.getSigner(); account = accs[0];
+    $("connectBtn").textContent = short(account);
+    window.ethereum.on && window.ethereum.on("accountsChanged", () => location.reload());
+    window.ethereum.on && window.ethereum.on("chainChanged", () => location.reload());
+    await refreshAll();
+  } catch (e) { toast("Connect failed: " + errMsg(e), "bad"); }
+}
+
+// run a write; show progress + result
+async function tx(label, fn, after) {
+  if (!signer) { await connect(); if (!signer) return; }
+  try {
+    toast("⏳ " + label + " — confirm in wallet…");
+    const t = await fn(); toast("⏳ " + label + " — waiting for confirmation…");
+    const r = await t.wait();
+    toast(`✅ ${label}<br><a href="${CONFIG.explorer}/tx/${r.hash}" target="_blank" rel="noopener">${short(r.hash)}</a>`, "good");
+    if (after) await after(); await refreshAll(); return true;
+  } catch (e) { toast("❌ " + label + ": " + errMsg(e), "bad"); return false; }
+}
+const mustOwn = (name) => {
+  if (!account) return true;
+  if (owners[name] && owners[name].toLowerCase() !== account.toLowerCase()) { toast(`❌ Connected wallet is not the owner of ${name} (owner: ${short(owners[name])}).`, "bad"); return false; }
+  return true;
+};
+const num = (id) => Number($(id).value || 0);
+const need = (cond, m) => { if (!cond) { toast("⚠️ " + m, "bad"); } return cond; };
+
+// ---------- Overview ----------
+async function refreshOverview() {
+  $("connInfo").innerHTML = account
+    ? `<div class="kv"><span>Wallet</span><span>${link(account)}</span></div><div class="kv"><span>Network</span><span class="ok">BSC Testnet ✓</span></div>`
+    : `<div class="kv"><span>Wallet</span><span class="bad">not connected</span></div>`;
+  $("gate").classList.toggle("hidden", !!account);
+
+  const rows = await Promise.all(OWNED.map(async (n) => { const o = await safe(C(n).owner()); owners[n] = o; return { n, o }; }));
+  $("ownerRows").innerHTML = rows.map(({ n, o }) => {
+    const you = !account ? "—" : (o && o.toLowerCase() === account.toLowerCase()) ? '<span class="ok">owner ✓</span>' : '<span class="bad">not owner</span>';
+    return `<tr><td>${n}</td><td>${link(CONFIG.addresses[n])}</td><td>${o ? link(o) : "—"}</td><td>${you}</td></tr>`;
+  }).join("");
+
+  const A = CONFIG.addresses, usdt = C("MockUSDT"), bcf = C("BCFToken");
+  const [opsU, opsB, insU, nodeB, invU, oracle, opsPx, redeemPx, buyPx, me] = await Promise.all([
+    safe(usdt.balanceOf(A.Operations)), safe(bcf.balanceOf(A.Operations)), safe(usdt.balanceOf(A.Insurance)), safe(bcf.balanceOf(A.Node)),
+    safe(usdt.balanceOf(A.Investment)), safe(C("PriceOracle").getPrice()), safe(C("Operations").bcfPrice()),
+    safe(C("Operations").getRedeemPrice()), safe(C("Operations").getBuyPrice()),
+    account ? Promise.all([safe(usdt.balanceOf(account)), safe(bcf.balanceOf(account))]) : Promise.resolve([null, null]),
+  ]);
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  $("balInfo").innerHTML =
+    kv("Operations USDT pool", opsU != null ? fmt(opsU) + " USDT" : "—") + kv("Operations BCF pool", opsB != null ? fmt(opsB, 0) + " BCF" : "—") +
+    kv("Insurance USDT pool", insU != null ? fmt(insU) + " USDT" : "—") + kv("Node BCF (reward stock)", nodeB != null ? fmt(nodeB, 0) + " BCF" : "—") +
+    kv("Investment contract USDT", invU != null ? fmt(invU) + " USDT" : "—") +
+    kv("Oracle price", oracle != null ? "$" + fmt(oracle, 4) : "—") + kv("Operations bcfPrice", opsPx != null ? "$" + fmt(opsPx, 4) : "—") +
+    kv("Effective redeem / buy price", redeemPx != null ? `$${fmt(redeemPx, 4)} / $${fmt(buyPx, 4)}` : "n/a (older Operations)") +
+    (account ? kv("My USDT", me[0] != null ? fmt(me[0]) : "—") + kv("My BCF", me[1] != null ? fmt(me[1], 0) : "—") : "");
+}
+
+// ---------- Settings ----------
+const WALLET_KEYS = { "Operations.providerWallet": ["Operations", "providerWallet", "setProviderWallet"], "Operations.companyFeeWallet": ["Operations", "companyFeeWallet", "setCompanyFeeWallet"], "Investment.investmentFund": ["Investment", "investmentFund", "setInvestmentFund"], "Investment.marketingFund": ["Investment", "marketingFund", "setMarketingFund"], "Node.investmentFund": ["Node", "investmentFund", "setInvestmentFund"] };
+async function refreshSettings() {
+  const [orc, ops, rp, bp] = await Promise.all([safe(C("PriceOracle").getPrice()), safe(C("Operations").bcfPrice()), safe(C("Operations").getRedeemPrice()), safe(C("Operations").getBuyPrice())]);
+  const pair = await safe(C("PriceOracle").pair()), man = await safe(C("PriceOracle").manualPriceU());
+  $("priceInfo").innerHTML = [["Oracle (live)", orc], ["Oracle manual", man], ["Operations bcfPrice", ops], ["Redeem price used", rp], ["Buy price used", bp]]
+    .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v != null ? "$" + fmt(v, 4) : "n/a"}</span></div>`).join("") +
+    `<div class="kv"><span>Oracle pair</span><span>${pair && pair !== ZERO ? link(pair) : "none (manual)"}</span></div>`;
+
+  const secs = await Promise.all(["Investment", "Node", "Insurance"].map(n => safe(C(n).secondsPerMonth())));
+  $("timeInfo").innerHTML = ["Investment", "Node", "Insurance"].map((n, i) => `<div class="kv"><span>${n}</span><span>${secs[i] != null ? secs[i].toString() + " s" + (secs[i] === 2592000n ? " (30 days)" : secs[i] === 86400n ? " (1 day)" : "") : "n/a"}</span></div>`).join("");
+
+  const w = await Promise.all(Object.entries(WALLET_KEYS).map(async ([k, [n, g]]) => [k, await safe(C(n)[g]())]));
+  $("walletInfo").innerHTML = w.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v && v !== ZERO ? link(v) : '<span class="bad">not set</span>'}</span></div>`).join("");
+
+  const A = CONFIG.addresses;
+  const checks = [
+    ["Operations.investmentContract = Investment", (await safe(C("Operations").investmentContract())) === A.Investment, ["Operations", "setInvestmentContract", A.Investment]],
+    ["Operations.referralContract = Referral", (await safe(C("Operations").referralContract())) === A.Referral, ["Operations", "setReferralContract", A.Referral]],
+    ["Operations.priceOracle = PriceOracle", (await safe(C("Operations").priceOracle())) === A.PriceOracle, ["Operations", "setPriceOracle", A.PriceOracle]],
+    ["Referral.investmentContract = Investment", (await safe(C("Referral").investmentContract())) === A.Investment, ["Referral", "setInvestmentContract", A.Investment]],
+    ["Referral.operationsContract = Operations", (await safe(C("Referral").operationsContract())) === A.Operations, ["Referral", "setOperationsContract", A.Operations]],
+    ["BCF fee-exempt: Operations", await safe(C("BCFToken").isExemptFromFees(A.Operations)), ["BCFToken", "setExemptFromFees", A.Operations, true]],
+    ["BCF fee-exempt: Node", await safe(C("BCFToken").isExemptFromFees(A.Node)), ["BCFToken", "setExemptFromFees", A.Node, true]],
+    ["BCF fee-exempt: Insurance", await safe(C("BCFToken").isExemptFromFees(A.Insurance)), ["BCFToken", "setExemptFromFees", A.Insurance, true]],
+  ];
+  refreshSettings._fix = checks.filter(c => c[1] === false).map(c => c[2]);
+  $("authInfo").innerHTML = checks.map(([k, v]) => `<div class="kv"><span>${k}</span><span class="${v ? "ok" : v === false ? "bad" : ""}">${v ? "✓" : v === false ? "missing" : "n/a"}</span></div>`).join("");
+}
+
+// ---------- Levels ----------
+async function refreshLevels() {
+  const rows = await Promise.all([...Array(10)].map((_, i) => safe(C("Referral").levelConfigs(i + 1))));
+  $("levelRows").innerHTML = rows.map((r, i) => `<tr><td>V${i + 1}</td><td>${r ? fmt(r[0], 0) : "—"}</td><td>${r ? (Number(r[1]) / 100).toFixed(2) + "%" : "—"}</td></tr>`).join("");
+}
+
+// ---------- Members ----------
+async function lookup() {
+  const a = $("memAddr").value.trim(); if (!need(isAddr(a), "Enter a valid member address")) return;
+  $("memOut").innerHTML = '<span class="gold">Loading…</span>';
+  const [u, b, cr, ref, node, ids] = await Promise.all([safe(C("MockUSDT").balanceOf(a)), safe(C("BCFToken").balanceOf(a)), safe(C("Operations").getCredit(a)), safe(C("Referral").users(a)), safe(C("Node").getNodeInfo(a)), safe(C("Investment").getUserPurchases(a), [])]);
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  const plans = ["A", "B", "C"], tiers = ["V2", "V3", "V3 Premium", "V4 Premium"];
+  const pur = await Promise.all((ids || []).map(async (id) => { const p = await safe(C("Investment").getPurchaseInfo(id)); const bi = await safe(C("Investment").bcfIssued(id)); const pol = await safe(C("Insurance").getPolicy(id)); return { id, p, bi, pol }; }));
+  $("memOut").innerHTML = `<div class="grid">
+    <div><h3>Wallet</h3>${kv("Address", link(a))}${kv("USDT", u != null ? fmt(u) : "—")}${kv("BCF", b != null ? fmt(b) : "—")}${kv("Credit (Node-only)", cr != null ? fmt(cr) + " USDT" : "n/a")}</div>
+    <div><h3>Referral</h3>${ref ? kv("Referrer", ref[0] !== ZERO ? link(ref[0]) : "none") + kv("Direct referrals", ref[1].toString()) + kv("Team volume", fmt(ref[2]) + " USDT") + kv("Personal volume", fmt(ref[3]) + " USDT") + kv("Level", "V" + ref[4]) + kv("Total earned", fmt(ref[5]) + " USDT") : "<span class='bad'>n/a</span>"}</div>
+    <div><h3>Node</h3>${node && node[2] > 0n ? kv("Tier", tiers[Number(node[0])]) + kv("Invested", fmt(node[1]) + " USDT") + kv("Shares", node[2].toString()) + kv("Reward claimed (BCF)", fmt(node[4] + node[5])) : "<span style='color:var(--muted)'>no node</span>"}</div>
+    <div class="full" style="grid-column:1/-1"><h3>Purchases (${pur.length})</h3><div class="scroll"><table><thead><tr><th>ID</th><th>Plan</th><th>Amount</th><th>Months paid</th><th>Claimed</th><th>BCF received</th><th>Insurance</th><th>Active</th></tr></thead><tbody>
+      ${pur.length ? pur.map(({ id, p, bi, pol }) => p ? `<tr><td>#${id}</td><td>${plans[Number(p[1])]}</td><td>${fmt(p[2])}</td><td>${p[6]}</td><td>${fmt(p[5])}</td><td>${bi != null ? fmt(bi, 0) : "—"}</td><td>${pol && pol[0] != 0n ? (pol[3] ? "claimed" : "active") : "—"}</td><td>${p[7] ? '<span class="ok">yes</span>' : "no"}</td></tr>` : "").join("") : '<tr><td colspan="8" style="color:var(--muted)">none</td></tr>'}
+    </tbody></table></div></div></div>`;
+}
+
+async function refreshAll() { await Promise.all([refreshOverview(), refreshSettings(), refreshLevels()]); }
+
+// ---------- wiring ----------
+$("connectBtn").onclick = connect;
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#tabs button").forEach(x => { x.classList.toggle("active", x === b); x.classList.toggle("ghost", x !== b); });
+  ["overview", "tokens", "pools", "settings", "levels", "members"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+});
+const approveIfNeeded = async (spenderName, amtWei) => {
+  const u = C("MockUSDT", true); const cur = await u.allowance(account, CONFIG.addresses[spenderName]);
+  if (cur < amtWei) { const t = await u.approve(CONFIG.addresses[spenderName], amtWei); await t.wait(); }
+};
+
+$("btnMint").onclick = () => { const to = $("mintTo").value.trim(), a = num("mintAmt"); if (!need(isAddr(to), "Enter a valid member address") || !need(a > 0, "Amount must be > 0") || !mustOwn("MockUSDT")) return; tx(`Mint ${a} USDT → ${short(to)}`, () => C("MockUSDT", true).mint(to, ethers.parseUnits(String(a), 18))); };
+$("btnMintSelf").onclick = () => { const a = num("mintAmt"); if (!need(a > 0, "Amount must be > 0") || !mustOwn("MockUSDT")) return; if (!account) { connect(); return; } tx(`Mint ${a} USDT → me`, () => C("MockUSDT", true).mint(account, ethers.parseUnits(String(a), 18))); };
+$("btnBulk").onclick = async () => {
+  const list = $("bulkAddrs").value.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean), a = num("bulkAmt");
+  if (!need(list.length > 0 && list.every(isAddr), "Every line must be a valid address") || !need(a > 0, "Amount must be > 0") || !mustOwn("MockUSDT")) return;
+  let n = 0; for (const to of list) { const ok = await tx(`Mint ${a} USDT → ${short(to)} (${++n}/${list.length})`, () => C("MockUSDT", true).mint(to, ethers.parseUnits(String(a), 18))); if (!ok) break; }
+};
+$("btnSendUsdt").onclick = () => { const to = $("sendUsdtTo").value.trim(), a = num("sendUsdtAmt"); if (!need(isAddr(to), "Enter a valid address") || !need(a > 0, "Amount must be > 0")) return; tx(`Send ${a} USDT → ${short(to)}`, () => C("MockUSDT", true).transfer(to, ethers.parseUnits(String(a), 18))); };
+$("btnSendBcf").onclick = () => { const to = $("sendBcfTo").value.trim(), a = num("sendBcfAmt"); if (!need(isAddr(to), "Enter a valid address") || !need(a > 0, "Amount must be > 0")) return; tx(`Send ${a} BCF → ${short(to)}`, () => C("BCFToken", true).transfer(to, ethers.parseUnits(String(a), 18))); };
+
+$("btnFundIns").onclick = () => { const a = num("fundInsAmt"); if (!need(a > 0, "Amount must be > 0") || !mustOwn("Insurance")) return; const w = ethers.parseUnits(String(a), 18); tx(`Fund Insurance ${a} USDT`, async () => { await approveIfNeeded("Insurance", w); return C("Insurance", true).fund(w); }); };
+$("btnFundOps").onclick = () => { const a = num("fundOpsAmt"); if (!need(a > 0, "Amount must be > 0") || !mustOwn("Operations")) return; const w = ethers.parseUnits(String(a), 18); tx(`Fund Operations ${a} USDT`, async () => { await approveIfNeeded("Operations", w); return C("Operations", true).fundUSDTPool(w); }); };
+$("btnBcfTarget").onclick = () => { const t = $("bcfTarget").value, a = num("bcfTargetAmt"); if (!need(a > 0, "Amount must be > 0")) return; tx(`Send ${a} BCF → ${t}`, () => C("BCFToken", true).transfer(CONFIG.addresses[t], ethers.parseUnits(String(a), 18))); };
+$("btnWd").onclick = () => { const to = $("wdTo").value.trim(), a = num("wdAmt"), tok = $("wdToken").value; if (!need(isAddr(to), "Enter a valid address") || !need(a > 0, "Amount must be > 0") || !mustOwn("Operations")) return; if (!confirm(`Withdraw ${a} ${tok} from Operations to ${to}?`)) return; const w = ethers.parseUnits(String(a), 18); tx(`Withdraw ${a} ${tok}`, () => tok === "USDT" ? C("Operations", true).transferUSDTFunds(to, w) : C("Operations", true).transferFunds(to, w)); };
+
+$("btnOpsPrice").onclick = () => { const p = num("newOpsPrice"); if (!need(p > 0, "Price must be > 0") || !mustOwn("Operations")) return; if (!confirm(`Set Operations bcfPrice to $${p}?`)) return; tx(`Set Operations price $${p}`, () => C("Operations", true).setBCFPrice(ethers.parseUnits(String(p), 18))); };
+$("btnOraclePrice").onclick = () => { const p = num("newOraclePrice"); if (!need(p > 0, "Price must be > 0") || !mustOwn("PriceOracle")) return; if (!confirm(`Set Oracle manual price to $${p}?`)) return; tx(`Set Oracle price $${p}`, () => C("PriceOracle", true).setManualPrice(ethers.parseUnits(String(p), 18))); };
+$("btnPair").onclick = () => { const a = $("pairAddr").value.trim(); if (!need(isAddr(a), "Enter a valid pair address (or 0x000…0)") || !mustOwn("PriceOracle")) return; tx(`Set oracle pair ${short(a)}`, () => C("PriceOracle", true).setPair(a, $("pairToken0").value === "true")); };
+
+const setTime = async (secs) => {
+  if (!need(secs > 0, "Seconds must be > 0")) return;
+  if (!confirm(`Set 1 month = ${secs} seconds on Investment, Node and Insurance?`)) return;
+  for (const n of ["Investment", "Node", "Insurance"]) { if (!mustOwn(n)) return; const ok = await tx(`${n}.setSecondsPerMonth(${secs})`, () => C(n, true).setSecondsPerMonth(secs)); if (!ok) return; }
+};
+$("btnTime1m").onclick = () => setTime(60); $("btnTime1h").onclick = () => setTime(3600); $("btnTime1d").onclick = () => setTime(86400); $("btnTime30d").onclick = () => setTime(2592000);
+$("btnTimeCustom").onclick = () => setTime(num("timeCustom"));
+
+$("btnWallet").onclick = () => { const k = $("walletKey").value, a = $("walletAddr").value.trim(); if (!need(isAddr(a), "Enter a valid address")) return; const [n, , setter] = WALLET_KEYS[k]; if (!mustOwn(n)) return; tx(`${k} → ${short(a)}`, () => C(n, true)[setter](a)); };
+$("btnAuthFix").onclick = async () => {
+  const fixes = refreshSettings._fix || []; if (!fixes.length) { toast("✅ Nothing to fix.", "good"); return; }
+  if (!confirm(`Apply ${fixes.length} missing authorization(s)?`)) return;
+  for (const [n, fn, ...args] of fixes) { if (!mustOwn(n)) return; const ok = await tx(`${n}.${fn}`, () => C(n, true)[fn](...args)); if (!ok) return; }
+};
+$("btnLevel").onclick = () => { const lv = num("lvNum"), th = $("lvThreshold").value, pct = num("lvPct"); if (!need(lv >= 1 && lv <= 10, "Level must be 1-10") || !need(th !== "" && pct >= 0, "Enter threshold and rate") || !mustOwn("Referral")) return; tx(`Set V${lv}: ${th} USDT → ${pct}%`, () => C("Referral", true).setLevelConfig(lv, ethers.parseUnits(String(th), 18), Math.round(pct * 100))); };
+$("btnMem").onclick = lookup;
+
+refreshAll();
+</script>
+</body>
+</html>
