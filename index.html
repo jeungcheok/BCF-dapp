@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>BCF Wallet — Best Community Faith</title>
   <meta name="description" content="Decentralized community finance on BSC" />
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
@@ -29,10 +29,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif; min-height: 100vh; padding-bottom: 90px; }
-    body { zoom: 0.8; }
-    @supports not (zoom: 0.8) {
-      body { transform: scale(0.8); transform-origin: top center; width: 125%; }
-    }
+    @media (min-width: 769px) { body { zoom: 0.8; } }
     a { color: var(--gold); text-decoration: none; }
     a:hover { text-decoration: underline; }
     button { font-family: inherit; cursor: pointer; }
@@ -153,6 +150,31 @@
     .modal-inner { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; }
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
+
+    /* ===== V63 mobile fixes ===== */
+    html, body { overflow-x: hidden; }
+    .container { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
+    .bottom-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+    .nav-item { min-width: 56px; min-height: 44px; }
+    input, select, textarea { font-size: 16px; }
+    .table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 768px) {
+      .container { padding-left: 14px; padding-right: 14px; padding-top: 14px; }
+      .stat-row, .stat-row[style] { grid-template-columns: 1fr !important; }
+      [style*="grid-template-columns:repeat(4"] { grid-template-columns: 1fr 1fr !important; }
+      [style*="grid-template-columns:repeat(3"] { grid-template-columns: 1fr 1fr !important; }
+      [style*="grid-template-columns:1fr 1fr;gap:24px"] { grid-template-columns: 1fr !important; }
+      .stat-value { font-size: 1.35rem; }
+      .page-title { font-size: 1.35rem; }
+      .hero { padding: 16px; }
+      .hero-btns { flex-wrap: wrap; }
+      .hero-btns button { flex: 1; }
+      .modal { padding: 12px; align-items: flex-end; }
+      .modal-inner { padding: 20px; max-height: 88vh; overflow-y: auto; border-radius: 16px 16px 12px 12px; }
+      .topbar-inner { padding: 0 14px; }
+      .btn-connect { padding: 9px 12px; font-size: 0.85rem; }
+      #accountMenu { left: 12px !important; right: 12px !important; min-width: 0 !important; }
+    }
   </style>
   <style>
     @keyframes pulse {
@@ -233,7 +255,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V62</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V63</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -479,6 +501,7 @@
         "function getProtectionAmount(uint256 purchaseId) view returns (uint256)",
         "function getTotalClaimed() view returns (uint256)",
         "function fund(uint256 amountU)",
+        "function getBcfRequired(uint256 purchaseId) view returns (uint256)",
         "function monthsSince(uint256 since) view returns (uint256)",
       ],
       Operations: [
@@ -491,6 +514,9 @@
         "function redeemBCF(uint256,uint256) returns (uint256)",
         "function fundUSDTPool(uint256)",
         "function getUSDTPoolBalance() view returns (uint256)",
+        "function getRedeemPrice() view returns (uint256)",
+        "function getBuyPrice() view returns (uint256)",
+        "function getCredit(address) view returns (uint256)",
       ],
       PriceOracle: [
         "function getPrice() view returns (uint256)",
@@ -509,12 +535,14 @@
       Node: [
         "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
         "function buyNode(uint256) returns (uint256)",
+        "function buyNodeWithCredit(uint256,uint256) returns (uint256)",
         "function claimNodeReward() returns (uint256)",
         "function getTotalShares() view returns (uint256)",
         "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
       Referral: [
         "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
+        "function users(address) view returns (address,uint256,uint256,uint256,uint8,uint256,uint256,bool)",
       ],
     };
 
@@ -711,22 +739,36 @@
       }
     }
 
+    // Redeem price + fee model. New Operations (8.4) exposes getRedeemPrice() and charges 10%;
+    // an older Operations without it falls back to the oracle price with no fee.
+    async function getRedeemQuote() {
+      try {
+        const p = await getContract("Operations").getRedeemPrice();
+        return { price: Number(ethers.formatUnits(p, 18)), netFactor: 0.9, hasFee: true };
+      } catch (e) {}
+      try {
+        const p = await getContract("PriceOracle").getPrice();
+        return { price: Number(ethers.formatUnits(p, 18)), netFactor: 1, hasFee: false };
+      } catch (e) {}
+      return { price: 0, netFactor: 1, hasFee: false };
+    }
+
     async function updateRedeemEstimate() {
       const bcfInp = document.getElementById("redeemBcfAmount");
       const receiveEl = document.getElementById("redeemReceive");
       const priceEl = document.getElementById("redeemPrice");
       const rateEl = document.getElementById("redeemRate");
+      const feeEl = document.getElementById("redeemFee");
       if (!bcfInp || !receiveEl) return;
       const amt = Number(bcfInp.value || 0);
-      if (amt <= 0) { receiveEl.textContent = "0 USDT"; return; }
       try {
-        const oracle = getContract("PriceOracle");
-        const p = await oracle.getPrice();
-        const price = Number(ethers.formatUnits(p, 18));
-        const usdtOut = amt * price;
-        receiveEl.textContent = usdtOut.toFixed(4) + " USDT";
-        if (priceEl) priceEl.textContent = "$" + price.toFixed(4);
-        if (rateEl) rateEl.textContent = "$" + price.toFixed(4);
+        const q = await getRedeemQuote();
+        if (priceEl) priceEl.textContent = "$" + q.price.toFixed(4);
+        if (rateEl) rateEl.textContent = "$" + q.price.toFixed(4);
+        const gross = amt * q.price;
+        const net = gross * q.netFactor;
+        receiveEl.textContent = (amt > 0 ? net : 0).toFixed(4) + " USDT";
+        if (feeEl) feeEl.textContent = q.hasFee ? ((amt > 0 ? gross - net : 0).toFixed(4) + " USDT-equiv") : "none";
       } catch (e) {
         console.error("updateRedeemEstimate error:", e);
       }
@@ -1172,21 +1214,10 @@
             </div>
           </div>
         ` : ''}
-        ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() && state.deployed ? `
-          <div class="notice notice-info" style="display:flex;flex-direction:column;align-items:stretch;gap:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-              <span><strong>🛠 Owner Panel</strong> — Connected as MockUSDT owner:</span>
-              <button class="btn-purchase" id="mintUsdt" style="position:static;">Mint 10,000 USDT</button>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-              <span>Fund Insurance Pool (for claim payouts):</span>
-              <button class="btn-purchase" id="fundIns" style="position:static;">Fund Insurance 5,000 USDT</button>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-              <span>Set BCF Price (USDT per BCF, current: <span id="currentBcfPrice">—</span>):</span>
-              <input id="newBcfPrice" type="number" step="0.01" value="1.0" style="width:90px;padding:6px;background:#1f2937;color:#fbbf24;border:1px solid #fbbf24;border-radius:4px;" />
-              <button class="btn-purchase" id="setBcfPrice" style="position:static;">Set BCF Price</button>
-            </div>
+        ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() ? `
+          <div class="notice notice-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <span>🛠 You are connected as the contract owner.</span>
+            <a class="btn-purchase" href="/admin.html" style="position:static;text-decoration:none;display:inline-block;">Open Admin Panel →</a>
           </div>
         ` : ''}
       `;
@@ -1224,7 +1255,7 @@
             <h3 style="font-size:0.95rem;margin-bottom:14px;">🛡 Active Insurance Policies</h3>
             <div id="insurancePolicyList"><p style="color:var(--muted);text-align:center;padding:14px 0;">Loading policies...</p></div>
             <button class="btn-purchase" id="claimInsuranceBtn" style="position:static;width:100%;margin-top:14px;padding:14px;" ${!state.deployed ? 'disabled' : ''}>🛡 Claim Protection (USDT)</button>
-            <p style="color:var(--muted);font-size:0.75rem;margin-top:8px;text-align:center;">Owner must fund Insurance pool first. Use "Mint 10,000 USDT" then fund insurance (Owner Panel on Dashboard).</p>
+            <p style="color:var(--muted);font-size:0.75rem;margin-top:8px;text-align:center;">The admin funds the Insurance pool from the Admin page. Claiming also requires returning the BCF you received at purchase.</p>
           </div>
         ` : ''}
 
@@ -1258,6 +1289,10 @@
             <div><div class="stat-label">Node Shares</div><div style="font-weight:700;"><span id="nodeShares2">0</span></div></div>
             <div><div class="stat-label">Claimable BCF</div><div style="font-weight:700;color:#10b981;"><span id="nodeClaimable">0</span></div></div>
           </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg-elev);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:0.85rem;">
+            <span style="color:var(--muted);">Credit balance <span style="font-size:0.7rem;">(25% of rewards · spend on Node only)</span></span>
+            <span style="color:var(--gold);font-weight:700;white-space:nowrap;"><span id="nodeCredit">0</span> USDT</span>
+          </div>
           <div class="tier-progress">
             ${CONFIG.tiers.map((t, i, arr) => `
               <div class="tier-pip" style="width:auto;height:auto;background:transparent;border:0;padding:0;opacity:0.5;">
@@ -1266,7 +1301,15 @@
               ${i < arr.length - 1 ? `<div class="tier-line"></div>` : ''}
             `).join('')}
           </div>
-          <button class="btn-gold full" id="claimNodeReward" style="margin-top:14px;" ${!state.account || !state.deployed ? 'disabled' : ''}>🎁 Claim Node Reward (BCF)</button>
+          <button class="btn-gold full" id="claimNodeReward" style="margin-top:14px;" ${!state.account || !state.deployed ? 'disabled' : ''}>🎁 Claim Node Reward (75% USDT + 25% Credit)</button>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:20px;">
+          <h3 style="font-size:0.95rem;margin-bottom:8px;color:var(--gold);">Buy Node with Credit</h3>
+          <p style="color:var(--muted);font-size:0.8rem;margin-bottom:12px;line-height:1.5;">Credit comes from the 25% share of Node and referral rewards. It can only be spent on Node shares (100 USDT = 1 share). You can top up with extra USDT.</p>
+          <div class="form-row"><label>Credit to use (USDT)</label><input type="number" id="nodeCreditAmt" value="100" min="0" step="100" /></div>
+          <div class="form-row"><label>Extra USDT from wallet (optional)</label><input type="number" id="nodeCreditUsdt" value="0" min="0" step="100" /></div>
+          <button class="btn-gold full" id="nodeCreditBuy" ${!state.deployed ? 'disabled' : ''}>💎 Buy Node with Credit</button>
         </div>
 
         <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 12px;">Available Node Tiers</h3>
@@ -1354,17 +1397,17 @@ ${t.desc}</div>
           </div>
 
           <div class="form-row">
-            <label>Referrer (optional, 0x...)</label>
+            <label>Referrer (auto-linked on your first purchase, then locked)</label>
             <input type="text" id="planReferrer" placeholder="0x0000...0000" />
           </div>
 
           <div style="background:var(--bg-elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.85rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:var(--muted);">Entry Fee (5%):</span>
-              <span style="color:var(--red);" id="planEntryFee">—</span>
+              <span style="color:var(--muted);">50% → BCF <span style="font-size:0.7rem;">(30% fund · 20% marketing)</span>:</span>
+              <span style="color:var(--gold);" id="planEntryFee">—</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="color:var(--muted);">Net Deposit:</span>
+              <span style="color:var(--muted);">Principal (monthly return base):</span>
               <span style="color:var(--gold);font-weight:700;" id="planNet">—</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);">
@@ -1422,8 +1465,12 @@ ${t.desc}</div>
               <span style="color:var(--muted);">You Receive (estimated):</span>
               <span style="color:#10b981;font-weight:700;" id="redeemReceive">0 USDT</span>
             </div>
-            <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);font-size:0.75rem;color:var(--muted);">
-              <span>Slippage: 5% (minimum output)</span>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="color:var(--muted);">Redeem fee (10%):</span>
+              <span style="color:var(--red);" id="redeemFee">—</span>
+            </div>
+            <div style="padding-top:6px;border-top:1px solid var(--border);font-size:0.75rem;color:var(--muted);">
+              Fee = 4% paid in USDT + 6% paid in BCF · Slippage 5% (minimum output)
             </div>
           </div>
 
@@ -1684,89 +1731,6 @@ ${t.desc}</div>
         showInsuranceDetails();
       });
 
-      // Owner — Mint 10,000 USDT (test)
-      const mintUsdt = document.getElementById("mintUsdt");
-      if (mintUsdt) mintUsdt.addEventListener("click", async () => {
-        try {
-          const usdt = getContract("MockUSDT", true);
-          const amount = ethers.parseUnits("10000", 18);
-          mintUsdt.textContent = "Minting...";
-          mintUsdt.disabled = true;
-          const tx = await usdt.mint(state.account, amount);
-          await tx.wait();
-          mintUsdt.textContent = "✓ Minted 10,000 USDT";
-          alert("✅ Minted 10,000 USDT!\n\nTx: " + tx.hash + "\n\nYour balance is now updated.");
-          setTimeout(() => { mintUsdt.textContent = "Mint 10,000 USDT"; mintUsdt.disabled = false; }, 3000);
-          // Re-fetch balance
-          render();
-        } catch (e) {
-          alert("Mint failed: " + (e.reason || e.message));
-          mintUsdt.textContent = "Mint 10,000 USDT";
-          mintUsdt.disabled = false;
-        }
-      });
-
-      // Owner — Fund Insurance Pool
-      const fundIns = document.getElementById("fundIns");
-      if (fundIns) fundIns.addEventListener("click", async () => {
-        try {
-          fundIns.disabled = true;
-          fundIns.textContent = "⏳ Approving USDT...";
-          const usdt = getContract("MockUSDT", true);
-          const ins = getContract("Insurance", true);
-          const amount = ethers.parseUnits("5000", 18);
-          // Approve Insurance contract
-          const curAllow = await usdt.allowance(state.account, CONFIG.addresses.Insurance);
-          if (curAllow < amount) {
-            const txA = await usdt.approve(CONFIG.addresses.Insurance, amount);
-            await txA.wait();
-          }
-          fundIns.textContent = "⏳ Funding...";
-          const tx = await ins.fund(amount);
-          await tx.wait();
-          fundIns.textContent = "✓ Funded 5,000 USDT";
-          alert(`✅ Insurance pool funded with 5,000 USDT!\n\nTx: ${tx.hash}`);
-          setTimeout(() => { fundIns.textContent = "Fund Insurance 5,000 USDT"; fundIns.disabled = false; render(); }, 3000);
-        } catch (e) {
-          alert("Fund failed: " + (e.reason || e.message));
-          fundIns.textContent = "Fund Insurance 5,000 USDT";
-          fundIns.disabled = false;
-        }
-      });
-
-      // Owner — Set BCF Price (via PriceOracle.setManualPrice)
-      const setBcfPriceBtn = document.getElementById("setBcfPrice");
-      const currentBcfPriceEl = document.getElementById("currentBcfPrice");
-      if (currentBcfPriceEl) {
-        try {
-          const po = getContract("PriceOracle");
-          po.getPrice().then(p => {
-            currentBcfPriceEl.textContent = "$" + Number(ethers.formatUnits(p, 18)).toFixed(4);
-          }).catch(() => { currentBcfPriceEl.textContent = "$?"; });
-        } catch (e) { currentBcfPriceEl.textContent = "$?"; }
-      }
-      if (setBcfPriceBtn) setBcfPriceBtn.addEventListener("click", async () => {
-        try {
-          const inp = document.getElementById("newBcfPrice");
-          const newPrice = Number(inp.value || 1);
-          if (newPrice <= 0) { alert("Price must be > 0"); return; }
-          if (!confirm(`Set BCF Price to $${newPrice.toFixed(4)}?\n\nThis affects: 8.1 buy plan (50%→BCF) + 8.2 buy node (10%→BCF)`)) return;
-          setBcfPriceBtn.disabled = true;
-          setBcfPriceBtn.textContent = "⏳ Setting...";
-          const po = getContract("PriceOracle", true);
-          const priceWei = ethers.parseUnits(String(newPrice), 18);
-          const tx = await po.setManualPrice(priceWei);
-          await tx.wait();
-          setBcfPriceBtn.textContent = "✓ Updated!";
-          alert(`✅ BCF Price updated to $${newPrice}\n\nTx: ${tx.hash}\n\nNew conversion: 1 USDT = ${(1/newPrice).toFixed(4)} BCF`);
-          setTimeout(() => { setBcfPriceBtn.textContent = "Set BCF Price"; setBcfPriceBtn.disabled = false; render(); }, 3000);
-        } catch (e) {
-          alert("Set price failed: " + (e.reason || e.message));
-          setBcfPriceBtn.textContent = "Set BCF Price";
-          setBcfPriceBtn.disabled = false;
-        }
-      });
-
       // Dashboard — Copy Address
       const copyAddrBtn = document.getElementById("copyAddrBtn");
       if (copyAddrBtn) copyAddrBtn.addEventListener("click", async () => {
@@ -1995,19 +1959,44 @@ ${t.desc}</div>
       // Invest page — Amount input live calc
       const planAmount = document.getElementById("planAmount");
       const planReferrer = document.getElementById("planReferrer");
+      if (planReferrer) {
+        try { const saved = localStorage.getItem("bcf_referrer"); if (saved && !planReferrer.value) planReferrer.value = saved; } catch (e) {}
+        if (state.account && state.deployed) {
+          (async () => {
+            try {
+              const u = await getContract("Referral").users(state.account);
+              const r = u[0];
+              if (r && r !== ethers.ZeroAddress) {
+                planReferrer.value = r;
+                planReferrer.disabled = true;
+                const lbl = planReferrer.previousElementSibling;
+                if (lbl) lbl.textContent = "Referrer (locked on-chain)";
+              }
+            } catch (e) {}
+          })();
+        }
+      }
+      let _buyPx = 0;
+      (async () => {
+        try {
+          const ops = getContract("Operations");
+          let p; try { p = await ops.getBuyPrice(); } catch (e2) { p = await ops.getBCFPrice(); }
+          _buyPx = Number(ethers.formatUnits(p, 18));
+          recalcInvest();
+        } catch (e) {}
+      })();
       function recalcInvest() {
         if (!planAmount) return;
         const amt = Number(planAmount.value || 0);
         const plan = CONFIG.plans[_selectedPlan];
-        const entry = amt * 0.05;
-        const net = amt - entry;
-        const monthly = (net * plan.monthly) / 100;
+        const half = amt * 0.5;
+        const monthly = (amt * plan.monthly) / 100;
         const ef = document.getElementById("planEntryFee");
         const pn = document.getElementById("planNet");
         const pm = document.getElementById("planMonthly");
-        if (ef) ef.textContent = `-${entry.toFixed(2)} USDT`;
-        if (pn) pn.textContent = `${net.toFixed(2)} USDT`;
-        if (pm) pm.textContent = `+${monthly.toFixed(2)} BCF / month`;
+        if (ef) ef.textContent = _buyPx > 0 ? `≈ ${(half / _buyPx).toFixed(2)} BCF (${half.toFixed(2)} USDT)` : `${half.toFixed(2)} USDT`;
+        if (pn) pn.textContent = `${amt.toFixed(2)} USDT`;
+        if (pm) pm.textContent = `+${monthly.toFixed(2)} USDT / month`;
       }
       if (planAmount) {
         planAmount.addEventListener("input", recalcInvest);
@@ -2083,12 +2072,11 @@ ${t.desc}</div>
           const tx = await inv.buyPlan(_selectedPlan, amountWei, ref);
           const receipt = await tx.wait();
           // Compute bonus: 50% of net (95% of amount) swapped via BCF Price
-          const net = Number(amt) * 0.95;
-          const halfUsdt = net * 0.5;
+          const halfUsdt = Number(amt) * 0.5;
           let bcfBonus = halfUsdt; // default at price 1
           try {
             const ops = getContract("Operations");
-            const p = await ops.getBCFPrice();
+            let p; try { p = await ops.getBuyPrice(); } catch (e2) { p = await ops.getBCFPrice(); }
             const price = Number(ethers.formatUnits(p, 18));
             bcfBonus = halfUsdt / price;
           } catch (e) {}
@@ -2182,9 +2170,27 @@ ${t.desc}</div>
             } catch (e) {}
           }
           for (const item of pending) {
-            const ok = confirm(`Claim protection for Plan #${item.id}?\n\nProtection amount: ${ethers.formatUnits(item.protection, 18)} USDT\n\nNote: Insurance pool may be empty — owner must fund it first.`);
+            let bcfReq = 0n;
+            try { bcfReq = await insC.getBcfRequired(item.id); } catch (e) {}
+            const bcfNote = bcfReq > 0n ? `\n\nYou must return ${Number(ethers.formatUnits(bcfReq, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} BCF (the BCF you received at purchase) to claim.` : "";
+            const ok = confirm(`Claim protection for Plan #${item.id}?\n\nProtection amount: ${ethers.formatUnits(item.protection, 18)} USDT${bcfNote}\n\nNote: Insurance pool may be empty — owner must fund it first.`);
             if (ok) {
               claimInsProtect.textContent = "⏳ Claiming #" + item.id + "...";
+              if (bcfReq > 0n) {
+                const bcfRead = getContract("BCFToken");
+                const bcfBal = await bcfRead.balanceOf(state.account);
+                if (bcfBal < bcfReq) {
+                  alert(`You need ${ethers.formatUnits(bcfReq, 18)} BCF in your wallet to claim (you have ${ethers.formatUnits(bcfBal, 18)}).`);
+                  break;
+                }
+                const allow = await bcfRead.allowance(state.account, CONFIG.addresses.Insurance);
+                if (allow < bcfReq) {
+                  claimInsProtect.textContent = "⏳ Approving BCF...";
+                  const txA = await getContract("BCFToken", true).approve(CONFIG.addresses.Insurance, bcfReq);
+                  await txA.wait();
+                }
+                claimInsProtect.textContent = "⏳ Claiming #" + item.id + "...";
+              }
               const tx = await insC.claimInsurance(item.id);
               await tx.wait();
               alert(`✅ Claimed protection for Plan #${item.id}!\nTx: ${tx.hash}`);
@@ -2244,15 +2250,19 @@ ${t.desc}</div>
           const tx = await nodeC.claimNodeReward();
           const receipt = await tx.wait();
           alert(`✅ Claimed Node Reward!\n\nTx: ${tx.hash}\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
-          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (75% USDT + 25% Credit)";
           claimNodeBtn.disabled = false;
           render();
         } catch (e) {
           alert("Claim failed: " + (e.reason || e.message));
-          claimNodeBtn.textContent = "🎁 Claim Node Reward (BCF)";
+          claimNodeBtn.textContent = "🎁 Claim Node Reward (75% USDT + 25% Credit)";
           claimNodeBtn.disabled = false;
         }
       });
+
+      // Node — Buy with Credit
+      const nodeCreditBuy = document.getElementById("nodeCreditBuy");
+      if (nodeCreditBuy) nodeCreditBuy.addEventListener("click", () => buyNodeWithCreditUI(nodeCreditBuy));
 
       // Node — Load user data
       if (route === "node" && state.account && state.deployed) {
@@ -2277,6 +2287,11 @@ ${t.desc}</div>
             if (tierEl) tierEl.textContent = info[2] > 0n ? tierNames[Number(info[0])] : "—";
             if (invEl) invEl.textContent = Number(ethers.formatUnits(info[1], 18)).toLocaleString();
             if (sharesEl) sharesEl.textContent = info[2].toString();
+            try {
+              const cr = await getContract("Operations").getCredit(state.account);
+              const crEl = document.getElementById("nodeCredit");
+              if (crEl) crEl.textContent = Number(ethers.formatUnits(cr, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            } catch (e) {}
 
             // Calculate claimable
             if (info[2] > 0n && info[3] > 0n) {
@@ -2351,13 +2366,11 @@ ${t.desc}</div>
             alert(`✅ BCF approved!\n\nTx: ${txA.hash}`);
           }
           redeemBtn.textContent = "⏳ Step 2/3: Reading price...";
-          // Get current price for minUsdtOut
-          const oracleC = getContract("PriceOracle");
-          const price = await oracleC.getPrice();
-          // expected usdt = bcfAmount * price / 1e18
-          // minUsdtOut = expected * 0.95 (5% slippage)
-          const expectedUsdt = (bcfAmount * Number(ethers.formatUnits(price, 18))).toFixed(2);
-          const minUsdtOut = ethers.parseUnits((expectedUsdt * 0.95).toFixed(2), 18);
+          // Net amount after the 10% fee (new Operations) at the price the contract will actually use
+          const q = await getRedeemQuote();
+          if (!(q.price > 0)) throw new Error("BCF price unavailable");
+          const expectedUsdt = (bcfAmount * q.price * q.netFactor).toFixed(2);
+          const minUsdtOut = ethers.parseUnits((Number(expectedUsdt) * 0.95).toFixed(2), 18);
           redeemBtn.textContent = "⏳ Step 3/3: Redeeming...";
           const tx = await opsC.redeemBCF(bcfWei, minUsdtOut);
           await tx.wait();
@@ -2397,6 +2410,47 @@ ${t.desc}</div>
         alert("Activation failed: " + (e.reason || e.message));
       }
     };
+
+    async function buyNodeWithCreditUI(btn) {
+      if (!state.account) { await connectWallet(); return; }
+      if (!state.chainOk) { await switchToBSC(); return; }
+      const creditU = Number(document.getElementById("nodeCreditAmt").value || 0);
+      const usdtU = Number(document.getElementById("nodeCreditUsdt").value || 0);
+      if (creditU + usdtU < 100) { alert("Minimum 100 USDT-equivalent (1 share)"); return; }
+      const oldText = btn.textContent;
+      try {
+        btn.disabled = true;
+        btn.textContent = "⏳ Checking credit...";
+        const creditWei = ethers.parseUnits(String(creditU), 18);
+        const usdtWei = ethers.parseUnits(String(usdtU), 18);
+        const bal = await getContract("Operations").getCredit(state.account);
+        if (creditWei > bal) {
+          alert(`Not enough credit. You have ${Number(ethers.formatUnits(bal, 18)).toFixed(2)} USDT of credit.`);
+          btn.disabled = false; btn.textContent = oldText; return;
+        }
+        if (!confirm(`Buy ${Math.floor((creditU + usdtU) / 100)} node share(s)?\n\nCredit used: ${creditU} USDT\nWallet USDT: ${usdtU} USDT`)) {
+          btn.disabled = false; btn.textContent = oldText; return;
+        }
+        if (usdtWei > 0n) {
+          const usdt = getContract("MockUSDT");
+          const allow = await usdt.allowance(state.account, CONFIG.addresses.Node);
+          if (allow < usdtWei) {
+            btn.textContent = "⏳ Approving USDT...";
+            const txA = await getContract("MockUSDT", true).approve(CONFIG.addresses.Node, usdtWei);
+            await txA.wait();
+          }
+        }
+        btn.textContent = "⏳ Buying...";
+        const tx = await getContract("Node", true).buyNodeWithCredit(usdtWei, creditWei);
+        await tx.wait();
+        alert(`✅ Node shares purchased with credit!\n\nTx: ${tx.hash}\nView: https://testnet.bscscan.com/tx/${tx.hash}`);
+        btn.disabled = false; btn.textContent = oldText;
+        render();
+      } catch (e) {
+        alert("Buy with Credit failed: " + (e.reason || e.message));
+        btn.disabled = false; btn.textContent = oldText;
+      }
+    }
 
     async function buyNodeShares(amountU, btn) {
       if (!state.account) { await connectWallet(); return; }
@@ -2446,12 +2500,25 @@ ${t.desc}</div>
           <button class='btn-gold' onclick='location.hash="#/dashboard"'>Dashboard</button>
           <button class='btn-gold' onclick='location.hash="#/insurance"'>Capital Protection</button>
           <button class='btn-gold' onclick='location.hash="#/network"'>Network</button>
+          ${state.account && state.account.toLowerCase() === MOCK_USDT_OWNER.toLowerCase() ? "<button class='btn-gold' onclick='location.href=\"/admin.html\"'>🛠 Admin Panel</button>" : ""}
         </div>
       `);
     });
     document.querySelectorAll(".nav-item").forEach(b => {
       b.addEventListener("click", () => go(b.dataset.route));
     });
+    // Referral deep link: /ref/0x... or ?ref=0x...  -> remember it and jump to the buy page
+    (function captureReferral() {
+      try {
+        const m = location.pathname.match(/\/ref\/(0x[a-fA-F0-9]{40})/) || location.search.match(/[?&]ref=(0x[a-fA-F0-9]{40})/);
+        if (m) {
+          localStorage.setItem("bcf_referrer", m[1]);
+          if (location.pathname.indexOf("/ref/") === 0) history.replaceState(null, "", "/" + (location.hash || ""));
+          if (!location.hash || location.hash === "#/dashboard") location.hash = "#/invest";
+        }
+      } catch (e) {}
+    })();
+
     window.addEventListener("hashchange", render);
 
     // Auto-refresh data every 30s
