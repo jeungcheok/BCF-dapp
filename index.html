@@ -151,7 +151,7 @@
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
 
-    /* ===== V63 mobile fixes ===== */
+    /* ===== V64 mobile fixes ===== */
     html, body { overflow-x: hidden; }
     .container { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
     .bottom-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -255,7 +255,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V63</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V64</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -493,6 +493,7 @@
         "function userPurchases(address) view returns (uint256[])",
         "function getUserPurchases(address) view returns (uint256[])",
         "function claimMonthlyReturn(uint256) returns (uint256)",
+        "function getClaimableAmount(uint256) view returns (uint256)",
       ],
       Insurance: [
         "function activateInsurance(uint256 purchaseId)",
@@ -984,6 +985,36 @@
     // Pages
     // ============================================================
     // Dashboard data loader — called AFTER HTML is in the DOM
+    function renderPlansList(plans) {
+      const box = document.getElementById("dashPlansList");
+      if (!box) return;
+      const names = ["Plan A", "Plan B", "Plan C"], dur = [20, 10, 5], rate = [10, 15, 25];
+      const f2 = (w) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      if (!plans.length) { box.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;text-align:center;padding:10px 0;">No plans yet — buy one below.</p>'; return; }
+      box.innerHTML = plans.map(p => `
+        <div style="background:var(--bg-elev);border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700;">#${p.id} · ${names[p.planId] || "Plan"} <span style="color:var(--muted);font-weight:500;font-size:0.8rem;">(${rate[p.planId] || "?"}% / month)</span></div>
+            <div style="color:var(--muted);font-size:0.78rem;margin-top:2px;">${f2(p.amount)} USDT · month ${p.months}/${dur[p.planId] || "?"} · claimed ${f2(p.claimed)} USDT${p.active ? "" : " · closed"}</div>
+          </div>
+          ${p.active
+            ? `<button class="btn-purchase plan-claim-btn" data-id="${p.id}" style="position:static;" ${p.claimable > 0n ? "" : "disabled"}>${p.claimable > 0n ? "Claim " + f2(p.claimable) + " USDT" : "Nothing to claim yet"}</button>`
+            : ""}
+        </div>`).join("");
+      box.querySelectorAll(".plan-claim-btn").forEach(btn => btn.addEventListener("click", async () => {
+        const old = btn.textContent; btn.disabled = true; btn.textContent = "⏳ Claiming...";
+        try {
+          const tx = await getContract("Investment", true).claimMonthlyReturn(btn.dataset.id);
+          await tx.wait();
+          alert("✅ Monthly return claimed!\n\nTx: " + tx.hash + "\nView: https://testnet.bscscan.com/tx/" + tx.hash);
+          render();
+        } catch (e) {
+          alert("Claim failed: " + (e.reason || e.shortMessage || e.message));
+          btn.disabled = false; btn.textContent = old;
+        }
+      }));
+    }
+
     async function loadDashboardData() {
       if (!state.deployed || !state.account) return;
 
@@ -994,6 +1025,7 @@
       const sel = {
         getUserPurchases: "0x" + ethers.id("getUserPurchases(address)").slice(2, 10),
         getPurchaseInfo: "0x" + ethers.id("getPurchaseInfo(uint256)").slice(2, 10),
+        getClaimableAmount: "0x" + ethers.id("getClaimableAmount(uint256)").slice(2, 10),
         getPoolBalance:  "0x" + ethers.id("getPoolBalance()").slice(2, 10),
         getPrice:        "0x" + ethers.id("getPrice()").slice(2, 10),
         pair:            "0x" + ethers.id("pair()").slice(2, 10),
@@ -1014,7 +1046,7 @@
       // --- One read per stat, parallel via Promise.all (each is one HTTP request) ---
       const [rawIds, rawPool, rawPrice, rawPair, rawInsBal, rawUsdtBal, rawBcfBal] = await Promise.all([
         call(CONFIG.addresses.Investment,  sel.getUserPurchases + padAddr(state.account), "getUserPurchases"),
-        call(CONFIG.addresses.Dashboard,   sel.getPoolBalance, "getPoolBalance"),
+        call(CONFIG.addresses.Operations,  sel.getPoolBalance, "getPoolBalance"),
         call(CONFIG.addresses.PriceOracle, sel.getPrice, "getPrice"),
         call(CONFIG.addresses.PriceOracle, sel.pair, "pair"),
         call(CONFIG.addresses.MockUSDT,    sel.balanceOf + padAddr(CONFIG.addresses.Insurance), "balanceOf(ins)"),
@@ -1083,18 +1115,33 @@
             if (!r) continue;
             try {
               const d = invIface.decodeFunctionResult("getPurchaseInfo(uint256)", r);
-              plans.push({ id, amount: d[2], active: d[7] });
+              let claimable = 0n;
+              if (d[7]) {
+                const rc = await call(CONFIG.addresses.Investment, sel.getClaimableAmount + padUint(id), "gca#"+id);
+                if (rc) { try { claimable = invIface.decodeFunctionResult("getClaimableAmount(uint256)", rc)[0]; } catch (e) {} }
+              }
+              plans.push({ id, amount: d[2], active: d[7], claimed: d[5], claimable, planId: Number(d[1]), months: Number(d[6]) });
             } catch (e) { console.warn("decode gpi#"+id+" failed:", e.message?.slice(0,60)); }
           }
           const active = plans.filter(p => p.active);
           const total = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
           setText("dashActivePlans", String(active.length));
           setText("dashMyPurchase",  total.toLocaleString(undefined, { maximumFractionDigits: 0 }));
-          setText("dashMyReturn",    (total * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 }));
+          const fmt2 = (w) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+          const claimedAll = plans.reduce((a, p) => a + p.claimed, 0n);
+          const claimableAll = plans.reduce((a, p) => a + p.claimable, 0n);
+          setText("dashMyReturn", fmt2(claimedAll));
+          const sub = document.getElementById("dashMyReturnSub");
+          if (sub) {
+            sub.textContent = claimableAll > 0n ? ("+ " + fmt2(claimableAll) + " USDT claimable now · claim below") : "claimed so far · nothing claimable yet";
+            sub.style.color = claimableAll > 0n ? "var(--gold)" : "var(--muted)";
+          }
+          renderPlansList(plans);
         } else {
           setText("dashActivePlans", "0");
           setText("dashMyPurchase",  "0");
           setText("dashMyReturn",    "0");
+          const sub0 = document.getElementById("dashMyReturnSub"); if (sub0) sub0.textContent = "no plans yet";
         }
       } else {
         // Don't silently show "⏳" — show explicit error
@@ -1119,6 +1166,7 @@
           <div class="stat-card">
             <div class="stat-label">My Total Auto Selling BCF Return</div>
             <div class="stat-value"><span id="dashMyReturn">⏳</span><span class="unit">USDT</span></div>
+            <div id="dashMyReturnSub" style="font-size:0.75rem;color:var(--muted);margin-top:4px;"></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">My Active Plans</div>
@@ -1147,6 +1195,11 @@
             <div class="stat-label">Insurance Pool</div>
             <div class="stat-value"><span id="dashInsPool">⏳</span><span class="unit">USDT</span></div>
           </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom:16px;">
+          <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--gold);">My Plans · Monthly Returns</h3>
+          <div id="dashPlansList"><p style="color:var(--muted);font-size:0.85rem;text-align:center;padding:10px 0;">Loading…</p></div>
         </div>
 
         <div class="hero" style="margin-top:8px;margin-bottom:24px;">
