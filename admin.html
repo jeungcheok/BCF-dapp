@@ -232,7 +232,7 @@ let provider = null, signer = null, account = null;
 const readProvider = new ethers.JsonRpcProvider(CONFIG.rpcUrl, { chainId: CONFIG.chainId, name: "bsc-testnet" }, { staticNetwork: true });
 const $ = (id) => document.getElementById(id);
 const C = (name, write) => new ethers.Contract(CONFIG.addresses[name], ABIS[name], write ? signer : readProvider);
-const fmt = (w, d = 2) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { maximumFractionDigits: d });
+const fmt = (w, d = 2) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: d === 4 ? 4 : 0, maximumFractionDigits: d });
 const short = (a) => a ? a.slice(0, 6) + "…" + a.slice(-4) : "—";
 const link = (a) => `<a href="${CONFIG.explorer}/address/${a}" target="_blank" rel="noopener">${short(a)}</a>`;
 const isAddr = (a) => /^0x[a-fA-F0-9]{40}$/.test((a || "").trim());
