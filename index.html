@@ -151,7 +151,7 @@
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
 
-    /* ===== V65 mobile fixes ===== */
+    /* ===== V66 mobile fixes ===== */
     html, body { overflow-x: hidden; }
     .container { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
     .bottom-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -255,7 +255,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V65</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V66</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -315,7 +315,7 @@
         MockUSDT:    "0x1cdb2a741f0d0c36D825C7ACf3659870Bc2618C1",
         Operations:  "0xA669E3B3578bC92527D25583c6B82dB67ffF130f",
         Investment:  "0x7748FD0Da9B034c1975c2B18114EFb6377336871",
-        Node:        "0x371276d107005E302d8429446c27fFcbb96dAD6D",
+        Node:        "0x0f710b04460b1e699eb720646E5d97aEC0e4efd0",
         Referral:    "0x13f2568B2B4B531E5d4f9974f2714dACb72f958e",
         Insurance:   "0x6e2b19293e8380F714A54689C0aBce69C6F751E2",
         Dashboard:   "0x28921661Aa46779Cb72ee3a81c12E0479E7e0Cf3",
@@ -539,12 +539,15 @@
         "function buyNodeWithCredit(uint256,uint256) returns (uint256)",
         "function claimNodeReward() returns (uint256)",
         "function secondsPerMonth() view returns (uint256)",
+        "function pendingReward(address) view returns (uint256)",
         "function getTotalShares() view returns (uint256)",
         "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
       Referral: [
         "function getUserInfo(address) view returns (uint256,uint256,uint256,uint256)",
         "function users(address) view returns (address,uint256,uint256,uint256,uint8,uint256,uint256,bool)",
+        "function getDirectReferrals(address) view returns (address[])",
+        "function levelConfigs(uint8) view returns (uint256,uint16)",
       ],
     };
 
@@ -986,6 +989,86 @@
     // Pages
     // ============================================================
     // Dashboard data loader — called AFTER HTML is in the DOM
+    async function loadNetworkData() {
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      const fmt = (w, d = 2) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: d });
+      try {
+        const R = getContract("Referral");
+        const me = state.account;
+        const [u, directs, credit] = await Promise.all([
+          R.users(me),
+          R.getDirectReferrals(me).catch(() => []),
+          getContract("Operations").getCredit(me).catch(() => 0n),
+        ]);
+        const level = Number(u[4]), teamVol = u[2], earned = u[5];
+        const rows = [];
+        for (const a of Array.from(directs).slice(0, 50)) {
+          try { const d = await R.users(a); rows.push({ a, level: Number(d[4]), refs: d[1], vol: d[3] }); } catch (e) {}
+        }
+        const directVolume = rows.reduce((s, r) => s + r.vol, 0n);
+        let directEarn = directVolume / 10n;                       // direct reward = 10% of each referral's purchases
+        if (directEarn > earned) directEarn = earned;
+        set("netTotal", fmt(earned)); set("netEarned", fmt(earned));
+        set("netDirect", fmt(directEarn)); set("netTeam", fmt(earned - directEarn)); set("netCredit", fmt(credit));
+        set("netDirectCount", String(u[1])); set("netTeamVol", fmt(teamVol, 0));
+        set("netLevelBig", level > 0 ? "V" + level : "—"); set("netLevel", level > 0 ? "V" + level : "—");
+        for (let i = 1; i <= 4; i++) set("netLv" + i, "V" + i + ": " + (level >= i ? "Unlocked" : "Locked"));
+
+        const next = Math.min(level + 1, 10);
+        const cfgNext = await R.levelConfigs(next).catch(() => null);
+        set("netNextTitle", level >= 10 ? "Top level reached" : "Progress to V" + next);
+        set("netRefProg", String(u[1]));
+        set("netVolProg", fmt(teamVol, 0) + (cfgNext ? " / " + fmt(cfgNext[0], 0) : ""));
+        set("netStatus", level > 0 ? "V" + level + " active" : "Inactive");
+        if (level > 0) { const cur = await R.levelConfigs(level).catch(() => null); if (cur) set("netRate", "Your level rate: " + (Number(cur[1]) / 100).toFixed(2) + "%."); }
+
+        const body = document.getElementById("netList");
+        if (body) body.innerHTML = rows.length ? rows.map(r => `<tr>
+            <td><a href="https://testnet.bscscan.com/address/${r.a}" target="_blank" rel="noopener">${r.a.slice(0, 6)}…${r.a.slice(-4)}</a></td>
+            <td>${r.level > 0 ? "V" + r.level : "—"}</td><td>${r.refs}</td><td>${fmt(r.vol, 0)}</td><td>${fmt(r.vol / 10n)}</td>
+            <td style="color:${r.vol > 0n ? "#10b981" : "var(--muted)"};">${r.vol > 0n ? "Active" : "No purchase yet"}</td></tr>`).join("")
+          : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">No referrals yet — share your link above.</td></tr>';
+      } catch (e) {
+        console.error("Network load error:", e);
+        const body = document.getElementById("netList");
+        if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:20px;">Could not load network data: ' + (e.shortMessage || e.message || e) + '</td></tr>';
+      }
+    }
+
+    // History of money the user took out: BCF redemptions, insurance payouts and monthly-return claims (from contract events)
+    async function loadRedemptions() {
+      const box = document.getElementById("redeemListBody");
+      if (!box) return;
+      try {
+        const head = parseInt(await rawRpc("eth_blockNumber", []), 16);
+        const span = 150000, chunk = 50000;                        // about the last 5 days on BSC testnet
+        const userTopic = "0x" + state.account.toLowerCase().replace("0x", "").padStart(64, "0");
+        const topic = (sig) => ethers.id(sig);
+        const sources = [
+          { label: "Redeem BCF",     addr: CONFIG.addresses.Operations, topics: [topic("BCFRedeemed(address,uint256,uint256)"), userTopic],
+            fmt: (l) => { const d = ethers.AbiCoder.defaultAbiCoder().decode(["uint256", "uint256"], l.data); return Number(ethers.formatUnits(d[1], 18)).toFixed(2) + " USDT for " + Number(ethers.formatUnits(d[0], 18)).toFixed(0) + " BCF"; } },
+          { label: "Insurance payout", addr: CONFIG.addresses.Insurance, topics: [topic("InsuranceClaimed(uint256,address,uint256)"), null, userTopic],
+            fmt: (l) => "Plan #" + BigInt(l.topics[1]) + " · " + Number(ethers.formatUnits(ethers.AbiCoder.defaultAbiCoder().decode(["uint256"], l.data)[0], 18)).toFixed(2) + " USDT" },
+          { label: "Monthly return", addr: CONFIG.addresses.Investment, topics: [topic("MonthlyReturnClaimed(uint256,address,uint256)"), null, userTopic],
+            fmt: (l) => "Plan #" + BigInt(l.topics[1]) + " · " + Number(ethers.formatUnits(ethers.AbiCoder.defaultAbiCoder().decode(["uint256"], l.data)[0], 18)).toFixed(2) + " USDT" },
+        ];
+        const tasks = [];
+        for (const src of sources) for (let from = Math.max(0, head - span); from <= head; from += chunk) {
+          tasks.push(rawRpc("eth_getLogs", [{ address: src.addr, topics: src.topics, fromBlock: "0x" + from.toString(16), toBlock: "0x" + Math.min(from + chunk - 1, head).toString(16) }])
+            .then(logs => logs.map(l => ({ src, l }))));
+        }
+        const all = (await Promise.all(tasks)).flat().sort((a, b) => parseInt(b.l.blockNumber, 16) - parseInt(a.l.blockNumber, 16)).slice(0, 30);
+        if (!all.length) { box.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">No withdrawals in the last ~5 days</p>'; return; }
+        const times = {};
+        await Promise.all([...new Set(all.map(x => x.l.blockNumber))].map(async (bn) => { try { times[bn] = parseInt((await rawRpc("eth_getBlockByNumber", [bn, false])).timestamp, 16); } catch (e) {} }));
+        box.innerHTML = `<table class="table" style="font-size:0.8rem;"><thead><tr><th>When</th><th>Type</th><th>Detail</th></tr></thead><tbody>` + all.map(({ src, l }) =>
+          `<tr><td>${times[l.blockNumber] ? new Date(times[l.blockNumber] * 1000).toLocaleString() : "block " + parseInt(l.blockNumber, 16)}</td><td>${src.label}</td><td><a href="https://testnet.bscscan.com/tx/${l.transactionHash}" target="_blank" rel="noopener">${src.fmt(l)}</a></td></tr>`).join("") + "</tbody></table>";
+      } catch (e) {
+        console.warn("Redemption history failed:", e.message);
+        box.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">History is unavailable right now (RPC limit). Your balances above are not affected.</p>';
+      }
+    }
+
     function renderPlansList(plans) {
       const box = document.getElementById("dashPlansList");
       if (!box) return;
@@ -1125,7 +1208,7 @@
             } catch (e) { console.warn("decode gpi#"+id+" failed:", e.message?.slice(0,60)); }
           }
           const active = plans.filter(p => p.active);
-          const total = active.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
+          const total = plans.reduce((s, p) => s + Number(ethers.formatUnits(p.amount, 18)), 0);
           setText("dashActivePlans", String(active.length));
           setText("dashMyPurchase",  total.toLocaleString(undefined, { maximumFractionDigits: 0 }));
           const fmt2 = (w) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -1315,17 +1398,21 @@
 
         <div class="stat-card" style="margin-bottom:16px;">
           <h3 style="font-size:0.95rem;margin-bottom:14px;color:var(--gold);">Protection Schedule</h3>
+          <p style="color:var(--muted);font-size:0.78rem;margin-bottom:10px;line-height:1.5;">Share of your original principal you can recover. The first month cannot be claimed; after the last month listed there is no cover.</p>
           <table class="table">
-            <thead><tr><th>Month</th><th>Coverage</th><th>Status</th></tr></thead>
+            <thead><tr><th>Month</th><th>Plan A<br><span style="font-weight:400;font-size:0.7rem;">10% · 20 mo</span></th><th>Plan B<br><span style="font-weight:400;font-size:0.7rem;">15% · 10 mo</span></th><th>Plan C<br><span style="font-weight:400;font-size:0.7rem;">25% · 5 mo</span></th></tr></thead>
             <tbody>
-              <tr><td>Month 1</td><td>0%</td><td>—</td></tr>
-              <tr><td>Month 2</td><td>0%</td><td>—</td></tr>
-              <tr><td>Month 3</td><td>0%</td><td>—</td></tr>
-              <tr><td>Month 4</td><td>0%</td><td>—</td></tr>
-              <tr><td>Month 5</td><td>0%</td><td>—</td></tr>
-              <tr><td>Month 6+</td><td>0%</td><td>—</td></tr>
+              <tr><td>Month 1</td><td>70%</td><td>70%</td><td>70%</td></tr>
+              <tr><td>Month 2</td><td>60%</td><td>55%</td><td>45%</td></tr>
+              <tr><td>Month 3</td><td>50%</td><td>40%</td><td>20%</td></tr>
+              <tr><td>Month 4</td><td>40%</td><td>25%</td><td>—</td></tr>
+              <tr><td>Month 5</td><td>30%</td><td>10%</td><td>—</td></tr>
+              <tr><td>Month 6</td><td>20%</td><td>—</td><td>—</td></tr>
+              <tr><td>Month 7</td><td>10%</td><td>—</td><td>—</td></tr>
             </tbody>
           </table>
+          <p style="color:var(--muted);font-size:0.75rem;margin-top:10px;line-height:1.5;">One claim per plan. Claiming stops that plan's monthly returns, and you must return the BCF you received when you bought it.</p>
+          <table class="table" style="display:none"></table>
         </div>
       `;
     }
@@ -1577,23 +1664,23 @@ ${t.desc}</div>
           <h3 style="color:var(--gold);font-size:0.95rem;margin-bottom:14px;">Earnings Breakdown</h3>
           <div style="background:var(--bg-elev);padding:14px 16px;border-radius:8px;margin-bottom:14px;">
             <div class="stat-label">Total</div>
-            <div style="font-size:1.6rem;font-weight:700;">0<span class="unit">USDT</span></div>
+            <div style="font-size:1.6rem;font-weight:700;"><span id="netTotal">0</span><span class="unit">USDT</span></div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-            <div><div class="stat-label">Direct Referrals</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Team Earnings</div><div style="font-weight:700;">0 USDT</div></div>
-            <div><div class="stat-label">Credit Node</div><div style="font-weight:700;">0 USDT</div></div>
+            <div><div class="stat-label">Direct Referrals (≈10%)</div><div style="font-weight:700;"><span id="netDirect">0</span> USDT</div></div>
+            <div><div class="stat-label">Team Earnings</div><div style="font-weight:700;"><span id="netTeam">0</span> USDT</div></div>
+            <div><div class="stat-label">Credit (25% share)</div><div style="font-weight:700;"><span id="netCredit">0</span> USDT</div></div>
           </div>
         </div>
 
         <div class="stat-card" style="margin-bottom:16px;">
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;">
-            <div><div class="stat-label">Total Referrals</div><div style="font-size:1.4rem;font-weight:700;">0</div></div>
-            <div><div class="stat-label">Total Earned</div><div style="font-size:1.4rem;font-weight:700;">0<span class="unit">USDT</span></div></div>
+            <div><div class="stat-label">Direct Referrals</div><div style="font-size:1.4rem;font-weight:700;" id="netDirectCount">0</div></div>
+            <div><div class="stat-label">Total Earned</div><div style="font-size:1.4rem;font-weight:700;"><span id="netEarned">0</span><span class="unit">USDT</span></div></div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;">
-            <div><div class="stat-label">Active Level</div><div style="font-size:1.4rem;font-weight:700;">—</div></div>
-            <div><div class="stat-label">Total Team</div><div style="font-size:1.4rem;font-weight:700;">0<span class="unit">users</span></div></div>
+            <div><div class="stat-label">Active Level</div><div style="font-size:1.4rem;font-weight:700;" id="netLevelBig">—</div></div>
+            <div><div class="stat-label">Team Volume</div><div style="font-size:1.4rem;font-weight:700;"><span id="netTeamVol">0</span><span class="unit">USDT</span></div></div>
           </div>
           <div style="margin-top:14px;text-align:center;">
             <div class="stat-label">Your Referral Link</div>
@@ -1608,7 +1695,7 @@ ${t.desc}</div>
         <div class="stat-card" style="margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <h3 style="font-size:0.95rem;">V-Level Progress</h3>
-            <div style="text-align:right;"><div class="stat-label">Current Level</div><div style="color:var(--gold);font-weight:700;">—</div></div>
+            <div style="text-align:right;"><div class="stat-label">Current Level</div><div style="color:var(--gold);font-weight:700;" id="netLevel">—</div></div>
           </div>
           <div class="tier-progress">
             ${CONFIG.tiers.map((t, i) => `
@@ -1619,31 +1706,26 @@ ${t.desc}</div>
             `).join('')}
           </div>
           <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted);margin-bottom:14px;">
-            ${levels.map((l, i) => `<div>${l}: Locked</div>`).join('')}
+            ${levels.map((l, i) => `<div id="netLv${i + 1}">${l}: Locked</div>`).join('')}
           </div>
-          <h4 style="color:var(--gold);font-size:0.85rem;margin-bottom:8px;">Complete Challenges To Unlock V1</h4>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;font-size:0.85rem;">
-            <div><div class="stat-label">Referrals</div><div style="font-weight:700;">0/3</div></div>
-            <div><div class="stat-label">Team Volume</div><div style="font-weight:700;">0 USDT / 10,000 USDT</div></div>
-            <div><div class="stat-label">Status</div><div style="color:var(--muted);font-weight:700;">Inactive</div></div>
+          <h4 style="color:var(--gold);font-size:0.85rem;margin-bottom:8px;" id="netNextTitle">Next level</h4>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;font-size:0.85rem;">
+            <div><div class="stat-label">Direct referrals</div><div style="font-weight:700;" id="netRefProg">0</div></div>
+            <div><div class="stat-label">Team volume</div><div style="font-weight:700;" id="netVolProg">0</div></div>
+            <div><div class="stat-label">Status</div><div style="color:var(--muted);font-weight:700;" id="netStatus">Inactive</div></div>
           </div>
-          <h4 style="font-size:0.85rem;margin-bottom:8px;">Next Level Rewards</h4>
-          <div style="font-size:0.8rem;color:var(--muted);line-height:1.7;margin-bottom:14px;">
-            <div>0 USDT</div>
-            <div>0% V1 Team Commission Boost</div>
-            <div>V1 Badge</div>
-            <div>Claimable Rewards</div>
-            <div>0 USDT</div>
+          <p style="color:var(--muted);font-size:0.72rem;margin-bottom:14px;line-height:1.5;">Levels are granted on-chain by team volume. Team reward is differential: you earn the difference between your rate and the highest rate already paid below you. <span id="netRate"></span></p>
+          <div style="background:var(--bg-elev);border-radius:8px;padding:12px 14px;font-size:0.82rem;line-height:1.6;">
+            <strong style="color:var(--gold);">Rewards are paid automatically.</strong> When someone in your network buys a plan, 75% of your reward goes straight to your wallet in USDT and 25% is added as Credit (spend it on Node shares).
           </div>
-          <button class="btn-gold full" id="claimRewards" ${!state.deployed ? 'disabled' : ''}>Claim Rewards</button>
         </div>
 
         <div class="stat-card">
           <h3 style="font-size:0.95rem;margin-bottom:14px;">Referral List</h3>
           <table class="table">
-            <thead><tr><th>Name</th><th>Level</th><th>Referrals</th><th>BCF Rewards</th><th>Status</th><th>Joined On</th></tr></thead>
-            <tbody>
-              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">No referrals yet</td></tr>
+            <thead><tr><th>Address</th><th>Level</th><th>Direct refs</th><th>Volume (USDT)</th><th>Your 10%</th><th>Status</th></tr></thead>
+            <tbody id="netList">
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -1679,7 +1761,7 @@ ${t.desc}</div>
             </div>
             <div>
               <h3 style="color:var(--gold);text-align:center;font-size:1rem;padding-bottom:8px;border-bottom:2px solid var(--muted-2);margin-bottom:14px;color:var(--muted);">Redemption List</h3>
-              <p style="color:var(--muted);text-align:center;padding:20px 0;">No redemptions yet</p>
+              <div id="redeemListBody"><p style="color:var(--muted);text-align:center;padding:20px 0;">Loading...</p></div>
             </div>
           </div>
         </div>
@@ -2371,32 +2453,22 @@ ${t.desc}</div>
               if (amtEl && amtEl.value === "0" && whole >= 100) amtEl.value = String(whole);
             } catch (e) {}
 
-            // Calculate claimable
-            if (info[2] > 0n && info[3] > 0n) {
-              let monthSecs = 30 * 24 * 3600;
-              try { const sm = await getContract("Node").secondsPerMonth(); if (sm > 0n) monthSecs = Number(sm); } catch (e) {}
-              let nowSec = Date.now() / 1000;   // prefer the chain's own clock (immune to a wrong PC clock)
-              try { const blk = await rawRpc("eth_getBlockByNumber", ["latest", false]); if (blk && blk.timestamp) nowSec = parseInt(blk.timestamp, 16); } catch (e) {}
-              const monthsPassed = Math.min(11, Math.floor((nowSec - Number(info[3])) / monthSecs));
-              if (monthsPassed > 0) {
-                let total = 0;
-                for (let i = 0; i < monthsPassed; i++) {
-                  const bonusBps = i === 0 ? 10000 : Math.max(0, 10000 - (i * 1000));
-                  total += 500 * Number(info[2]) * bonusBps / 10000;
-                }
-                const claimed = Number(ethers.formatUnits(info[4] + info[5], 18));
-                const claimable = Math.max(0, total - claimed);
+            // Claimable BCF: the formula lives in the Node contract (pendingReward) - the page no longer copies it
+            if (info[2] > 0n) {
+              try {
+                const pr = await getContract("Node").pendingReward(state.account);
+                const claimableBcf = Number(ethers.formatUnits(pr, 18));
                 const claimEl = document.getElementById("nodeClaimable");
-                if (claimEl) claimEl.textContent = claimable.toFixed(2);
-                try {
+                if (claimEl) claimEl.textContent = claimableBcf.toFixed(2);
+                if (claimableBcf > 0) {
                   const q = await getRedeemQuote();
-                  if (q.price > 0 && claimable > 0) {
-                    const v = claimable * q.price;
-                    const sp = document.getElementById("nodeClaimSplit");
-                    if (sp) sp.textContent = "≈ " + (v * 0.75).toFixed(2) + " USDT + " + (v * 0.25).toFixed(2) + " Credit at the current price";
+                  const sp = document.getElementById("nodeClaimSplit");
+                  if (q.price > 0 && sp) {
+                    const v = claimableBcf * q.price;
+                    sp.textContent = "≈ " + (v * 0.75).toFixed(2) + " USDT + " + (v * 0.25).toFixed(2) + " Credit at the current price";
                   }
-                } catch (e) {}
-              }
+                }
+              } catch (e) { console.warn("pendingReward failed:", e.message?.slice(0, 80)); }
             }
 
             // USDT balance (same batch)
@@ -2411,11 +2483,9 @@ ${t.desc}</div>
         })();
       }
 
-      // Network — Claim Rewards
-      const claimRew = document.getElementById("claimRewards");
-      if (claimRew) claimRew.addEventListener("click", () => {
-        showModal("Rewards Claimed", "<p>You claimed <strong style='color:var(--gold);'>0 USDT</strong> in referral rewards.</p>");
-      });
+      // Network / Account — load real on-chain data
+      if (route === "network" && state.account && state.deployed) loadNetworkData();
+      if (route === "account" && state.account && state.deployed) loadRedemptions();
 
       // Redeem — pct buttons + real redeem
       document.querySelectorAll("[data-redeem-pct]").forEach(btn => {
