@@ -151,7 +151,7 @@
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
 
-    /* ===== V64 mobile fixes ===== */
+    /* ===== V65 mobile fixes ===== */
     html, body { overflow-x: hidden; }
     .container { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
     .bottom-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -255,7 +255,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V64</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V65</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -538,6 +538,7 @@
         "function buyNode(uint256) returns (uint256)",
         "function buyNodeWithCredit(uint256,uint256) returns (uint256)",
         "function claimNodeReward() returns (uint256)",
+        "function secondsPerMonth() view returns (uint256)",
         "function getTotalShares() view returns (uint256)",
         "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
@@ -1340,7 +1341,7 @@
             <div><div class="stat-label">Current Tier</div><div style="color:var(--gold);font-weight:700;" id="nodeTier">—</div></div>
             <div><div class="stat-label">Total Invested</div><div style="font-weight:700;"><span id="nodeInvested">0</span> USDT</div></div>
             <div><div class="stat-label">Node Shares</div><div style="font-weight:700;"><span id="nodeShares2">0</span></div></div>
-            <div><div class="stat-label">Claimable BCF</div><div style="font-weight:700;color:#10b981;"><span id="nodeClaimable">0</span></div></div>
+            <div><div class="stat-label">Claimable BCF</div><div style="font-weight:700;color:#10b981;"><span id="nodeClaimable">0</span></div><div id="nodeClaimSplit" style="font-size:0.65rem;color:var(--muted);margin-top:2px;"></div></div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg-elev);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:0.85rem;">
             <span style="color:var(--muted);">Credit balance <span style="font-size:0.7rem;">(25% of rewards · spend on Node only)</span></span>
@@ -1360,7 +1361,14 @@
         <div class="stat-card" style="margin-bottom:20px;">
           <h3 style="font-size:0.95rem;margin-bottom:8px;color:var(--gold);">Buy Node with Credit</h3>
           <p style="color:var(--muted);font-size:0.8rem;margin-bottom:12px;line-height:1.5;">Credit comes from the 25% share of Node and referral rewards. It can only be spent on Node shares (100 USDT = 1 share). You can top up with extra USDT.</p>
-          <div class="form-row"><label>Credit to use (USDT)</label><input type="number" id="nodeCreditAmt" value="100" min="0" step="100" /></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg-elev);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:0.9rem;">
+            <span style="color:var(--muted);">Your credit balance</span>
+            <span style="color:var(--gold);font-weight:700;white-space:nowrap;"><span id="nodeCreditHere">…</span> USDT</span>
+          </div>
+          <div class="form-row"><label>Credit to use (USDT)</label>
+            <div style="display:flex;gap:8px;"><input type="number" id="nodeCreditAmt" value="0" min="0" step="100" /><button type="button" class="btn-purchase" id="nodeCreditMax" style="position:static;flex:0 0 auto;">Max</button></div>
+          </div>
+          <p id="nodeCreditHint" style="color:var(--muted);font-size:0.78rem;margin:-4px 0 12px;line-height:1.5;"></p>
           <div class="form-row"><label>Extra USDT from wallet (optional)</label><input type="number" id="nodeCreditUsdt" value="0" min="0" step="100" /></div>
           <button class="btn-gold full" id="nodeCreditBuy" ${!state.deployed ? 'disabled' : ''}>💎 Buy Node with Credit</button>
         </div>
@@ -2316,6 +2324,12 @@ ${t.desc}</div>
       // Node — Buy with Credit
       const nodeCreditBuy = document.getElementById("nodeCreditBuy");
       if (nodeCreditBuy) nodeCreditBuy.addEventListener("click", () => buyNodeWithCreditUI(nodeCreditBuy));
+      const nodeCreditMax = document.getElementById("nodeCreditMax");
+      if (nodeCreditMax) nodeCreditMax.addEventListener("click", () => {
+        const w = window._nodeCreditWei || 0n;
+        const whole = Math.floor(Number(ethers.formatUnits(w, 18)) / 100) * 100;
+        document.getElementById("nodeCreditAmt").value = String(whole);
+      });
 
       // Node — Load user data
       if (route === "node" && state.account && state.deployed) {
@@ -2343,12 +2357,27 @@ ${t.desc}</div>
             try {
               const cr = await getContract("Operations").getCredit(state.account);
               const crEl = document.getElementById("nodeCredit");
-              if (crEl) crEl.textContent = Number(ethers.formatUnits(cr, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+              const crTxt = Number(ethers.formatUnits(cr, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+              if (crEl) crEl.textContent = crTxt;
+              window._nodeCreditWei = cr;
+              const crHere = document.getElementById("nodeCreditHere");
+              if (crHere) crHere.textContent = crTxt;
+              const hint = document.getElementById("nodeCreditHint");
+              const amtEl = document.getElementById("nodeCreditAmt");
+              const whole = Math.floor(Number(ethers.formatUnits(cr, 18)) / 100) * 100;
+              if (hint) hint.textContent = cr === 0n
+                ? "You have no credit yet. Credit is 25% of every Node reward you claim and 25% of referral rewards paid to you. Claim a Node reward above, or invite a member to buy a plan."
+                : (whole >= 100 ? "You can spend up to " + whole + " USDT of credit now (100 USDT = 1 share). Tap Max to use it all." : "You need at least 100 USDT of credit for 1 share. Add extra USDT from your wallet to top up.");
+              if (amtEl && amtEl.value === "0" && whole >= 100) amtEl.value = String(whole);
             } catch (e) {}
 
             // Calculate claimable
             if (info[2] > 0n && info[3] > 0n) {
-              const monthsPassed = Math.min(11, Math.floor((Date.now()/1000 - Number(info[3])) / (30*24*3600)));
+              let monthSecs = 30 * 24 * 3600;
+              try { const sm = await getContract("Node").secondsPerMonth(); if (sm > 0n) monthSecs = Number(sm); } catch (e) {}
+              let nowSec = Date.now() / 1000;   // prefer the chain's own clock (immune to a wrong PC clock)
+              try { const blk = await rawRpc("eth_getBlockByNumber", ["latest", false]); if (blk && blk.timestamp) nowSec = parseInt(blk.timestamp, 16); } catch (e) {}
+              const monthsPassed = Math.min(11, Math.floor((nowSec - Number(info[3])) / monthSecs));
               if (monthsPassed > 0) {
                 let total = 0;
                 for (let i = 0; i < monthsPassed; i++) {
@@ -2359,6 +2388,14 @@ ${t.desc}</div>
                 const claimable = Math.max(0, total - claimed);
                 const claimEl = document.getElementById("nodeClaimable");
                 if (claimEl) claimEl.textContent = claimable.toFixed(2);
+                try {
+                  const q = await getRedeemQuote();
+                  if (q.price > 0 && claimable > 0) {
+                    const v = claimable * q.price;
+                    const sp = document.getElementById("nodeClaimSplit");
+                    if (sp) sp.textContent = "≈ " + (v * 0.75).toFixed(2) + " USDT + " + (v * 0.25).toFixed(2) + " Credit at the current price";
+                  }
+                } catch (e) {}
               }
             }
 
