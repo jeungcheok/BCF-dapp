@@ -151,7 +151,7 @@
     .modal h3 { margin-bottom: 16px; font-size: 1.25rem; }
     .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
 
-    /* ===== V66 mobile fixes ===== */
+    /* ===== V67 mobile fixes ===== */
     html, body { overflow-x: hidden; }
     .container { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
     .bottom-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
@@ -255,7 +255,7 @@
         </span>
       </a>
       <div class="topbar-right">
-        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V66</span>
+        <span id="versionBadge" style="font-size:0.65rem;color:var(--muted);padding:2px 6px;border:1px solid var(--border);border-radius:4px;margin-right:6px;">V67</span>
         <button class="btn-connect" id="connectBtn">Connect Wallet</button>
         <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
       </div>
@@ -314,10 +314,10 @@
         BCFToken:    "0xa5876Bf2DF459Ee5A9c121FB1576672aD93BED2f",
         MockUSDT:    "0x1cdb2a741f0d0c36D825C7ACf3659870Bc2618C1",
         Operations:  "0xA669E3B3578bC92527D25583c6B82dB67ffF130f",
-        Investment:  "0x7748FD0Da9B034c1975c2B18114EFb6377336871",
-        Node:        "0x0f710b04460b1e699eb720646E5d97aEC0e4efd0",
+        Investment:  "0x6FD59De9a787764153f58182bA708f8cF07665b3",
+        Node:        "0x80B79C426baFA9f219D3ab41f4Ea63c0Bde0b4b0",
         Referral:    "0x13f2568B2B4B531E5d4f9974f2714dACb72f958e",
-        Insurance:   "0x6e2b19293e8380F714A54689C0aBce69C6F751E2",
+        Insurance:   "0xc9359a66bf04D471b8e238bc8C78626783EF0992",
         Dashboard:   "0x28921661Aa46779Cb72ee3a81c12E0479E7e0Cf3",
         PriceOracle: "0xeEE1b5C56E82377D5C2Da2ff2FAcF6B3C1D14c66",
       },
@@ -494,6 +494,7 @@
         "function getUserPurchases(address) view returns (uint256[])",
         "function claimMonthlyReturn(uint256) returns (uint256)",
         "function getClaimableAmount(uint256) view returns (uint256)",
+        "function maxPurchaseU() view returns (uint256)",
       ],
       Insurance: [
         "function activateInsurance(uint256 purchaseId)",
@@ -540,6 +541,7 @@
         "function claimNodeReward() returns (uint256)",
         "function secondsPerMonth() view returns (uint256)",
         "function pendingReward(address) view returns (uint256)",
+        "function maxPurchaseU() view returns (uint256)",
         "function getTotalShares() view returns (uint256)",
         "function nodes(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)",
       ],
@@ -989,6 +991,23 @@
     // Pages
     // ============================================================
     // Dashboard data loader — called AFTER HTML is in the DOM
+    // Per-purchase limits set by the contracts (0 = unlimited). Cached for 30 s.
+    async function getCaps() {
+      const now = Date.now();
+      if (window._caps && now - window._capsAt < 30000) return window._caps;
+      const caps = { inv: 0, node: 0 };
+      try { caps.inv = Number(ethers.formatUnits(await getContract("Investment").maxPurchaseU(), 18)); } catch (e) {}
+      try { caps.node = Number(ethers.formatUnits(await getContract("Node").maxPurchaseU(), 18)); } catch (e) {}
+      window._caps = caps; window._capsAt = now;
+      return caps;
+    }
+    function friendlyBuyError(e, prefix) {
+      let raw = (e.reason || "") + " " + (e.shortMessage || "") + " " + (e.message || "");
+      try { raw += " " + JSON.stringify(e.data || e.info || ""); } catch (x) {}
+      if (/ExceedsMaxPurchase|0x01ab0729/.test(raw)) return prefix + ": this amount is above the per-purchase limit. Please try a smaller amount.";
+      return prefix + ": " + (e.reason || e.message);
+    }
+
     async function loadNetworkData() {
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       const fmt = (w, d = 2) => Number(ethers.formatUnits(w, 18)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: d });
@@ -1460,7 +1479,8 @@
           <button class="btn-gold full" id="nodeCreditBuy" ${!state.deployed ? 'disabled' : ''}>💎 Buy Node with Credit</button>
         </div>
 
-        <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 12px;">Available Node Tiers</h3>
+        <h3 style="color:var(--muted);font-size:0.9rem;margin:24px 0 4px;">Available Node Tiers</h3>
+        <p id="nodeCapNote" style="color:var(--muted);font-size:0.78rem;margin:0 0 12px;"></p>
         ${CONFIG.tiers.map((t, idx) => `
           <div class="stat-card" style="margin-bottom:12px;position:relative;padding-right:120px;min-height:140px;">
             <div style="position:absolute;right:18px;top:18px;">${tierIcon(t.type, 72)}</div>
@@ -1561,6 +1581,10 @@ ${t.desc}</div>
             <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border);">
               <span style="color:var(--muted);">Monthly Reward:</span>
               <span style="color:#10b981;font-weight:700;" id="planMonthly">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;">
+              <span style="color:var(--muted);">Max per purchase:</span>
+              <span style="color:var(--gold);font-weight:700;" id="planCap">…</span>
             </div>
           </div>
 
@@ -2119,6 +2143,7 @@ ${t.desc}</div>
           })();
         }
       }
+      getCaps().then(c => { const el = document.getElementById("planCap"); if (el) el.textContent = c.inv > 0 ? c.inv.toLocaleString() + " USDT" : "No limit"; });
       let _buyPx = 0;
       (async () => {
         try {
@@ -2194,6 +2219,10 @@ ${t.desc}</div>
         if (amt < CONFIG.plans[_selectedPlan].min) {
           alert(`Minimum ${CONFIG.plans[_selectedPlan].min} USDT`); return;
         }
+        const capNow = await getCaps();
+        if (capNow.inv > 0 && amt > capNow.inv) {
+          alert(`Maximum ${capNow.inv.toLocaleString()} USDT per purchase.\n\nLarger amounts would not fit safely into the PancakeSwap pool. Please buy in smaller steps.`); return;
+        }
         const ref = (planReferrer && planReferrer.value && planReferrer.value.startsWith("0x") && planReferrer.value.length === 42)
           ? planReferrer.value
           : ethers.ZeroAddress;
@@ -2231,7 +2260,7 @@ ${t.desc}</div>
             render(); // refresh balances
           }, 4000);
         } catch (e) {
-          alert("Buy failed: " + (e.reason || e.message));
+          alert(friendlyBuyError(e, "Buy failed"));
           buyPlanBtn.textContent = "💰 Buy Plan";
           buyPlanBtn.disabled = false;
         }
@@ -2484,6 +2513,7 @@ ${t.desc}</div>
       }
 
       // Network / Account — load real on-chain data
+      if (route === "node") getCaps().then(c => { const el = document.getElementById("nodeCapNote"); if (el) el.textContent = c.node > 0 ? "Maximum " + c.node.toLocaleString() + " USDT per purchase." : ""; });
       if (route === "network" && state.account && state.deployed) loadNetworkData();
       if (route === "account" && state.account && state.deployed) loadRedemptions();
 
@@ -2577,6 +2607,8 @@ ${t.desc}</div>
       const creditU = Number(document.getElementById("nodeCreditAmt").value || 0);
       const usdtU = Number(document.getElementById("nodeCreditUsdt").value || 0);
       if (creditU + usdtU < 100) { alert("Minimum 100 USDT-equivalent (1 share)"); return; }
+      const nodeCap2 = (await getCaps()).node;
+      if (nodeCap2 > 0 && creditU + usdtU > nodeCap2) { alert(`Maximum ${nodeCap2.toLocaleString()} USDT per purchase.`); return; }
       const oldText = btn.textContent;
       try {
         btn.disabled = true;
@@ -2607,7 +2639,7 @@ ${t.desc}</div>
         btn.disabled = false; btn.textContent = oldText;
         render();
       } catch (e) {
-        alert("Buy with Credit failed: " + (e.reason || e.message));
+        alert(friendlyBuyError(e, "Buy with Credit failed"));
         btn.disabled = false; btn.textContent = oldText;
       }
     }
@@ -2616,6 +2648,8 @@ ${t.desc}</div>
       if (!state.account) { await connectWallet(); return; }
       if (!state.chainOk) { await switchToBSC(); return; }
       if (amountU < 100) { alert("Minimum 100 USDT"); return; }
+      const nodeCap = (await getCaps()).node;
+      if (nodeCap > 0 && amountU > nodeCap) { alert(`Maximum ${nodeCap.toLocaleString()} USDT per purchase.`); return; }
       const shares = amountU / 100;
       if (!confirm(`Buy ${shares} node shares for ${amountU} USDT?\n\nThis auto-approves USDT if needed (max 2 wallet confirmations).`)) return;
       try {
@@ -2639,7 +2673,7 @@ ${t.desc}</div>
         btn.textContent = "✓ Purchased!";
         setTimeout(() => { btn.textContent = oldText; btn.disabled = false; render(); }, 3000);
       } catch (e) {
-        alert("Buy Node failed: " + (e.reason || e.message));
+        alert(friendlyBuyError(e, "Buy Node failed"));
         btn.disabled = false;
         btn.textContent = btn.dataset.tier ? `Purchase for ${amountU} USDT` : "💎 Buy Node Shares";
       }
