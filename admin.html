@@ -172,6 +172,13 @@
       <p class="notice warn">Set Investment Fund / Node Fund to the <b>Operations</b> address if you want those funds to back payouts.</p>
     </div>
     <div class="card">
+      <h2>Purchase limit & pool depth</h2>
+      <div id="capInfo"><span class="gold">Loading…</span></div>
+      <p class="notice">A plan swaps 50% of its amount into BCF on PancakeSwap, and the contract rejects swaps that would lose more than 10% to price impact (then it falls back to the Operations pool). That happens above ~21.7% of the pool's USDT reserve, so keep the cap at about <b>20%</b> of it. Pool too shallow? Run <code>AddLiquidity.s.sol</code>.</p>
+      <label>New limit per purchase (USDT, 0 = unlimited)</label><input id="capNew" type="number" min="0" step="100" placeholder="e.g. 46200" />
+      <div class="row" style="margin-top:8px;"><button id="btnCapSet">Set on Investment + Node</button><button id="btnCapSuggest" class="ghost">Use suggested (20% of pool)</button></div>
+    </div>
+    <div class="card">
       <h2>Authorizations (one-time setup check)</h2>
       <div id="authInfo"></div>
       <div class="row" style="margin-top:10px;"><button id="btnAuthFix">Apply missing authorizations</button></div>
@@ -208,10 +215,10 @@ const CONFIG = {
     BCFToken:    "0xa5876Bf2DF459Ee5A9c121FB1576672aD93BED2f",
     MockUSDT:    "0x1cdb2a741f0d0c36D825C7ACf3659870Bc2618C1",
     Operations:  "0xA669E3B3578bC92527D25583c6B82dB67ffF130f",
-    Investment:  "0x7748FD0Da9B034c1975c2B18114EFb6377336871",
-    Node:        "0x0f710b04460b1e699eb720646E5d97aEC0e4efd0",
+    Investment:  "0x6FD59De9a787764153f58182bA708f8cF07665b3",
+    Node:        "0x80B79C426baFA9f219D3ab41f4Ea63c0Bde0b4b0",
     Referral:    "0x13f2568B2B4B531E5d4f9974f2714dACb72f958e",
-    Insurance:   "0x6e2b19293e8380F714A54689C0aBce69C6F751E2",
+    Insurance:   "0xc9359a66bf04D471b8e238bc8C78626783EF0992",
     PriceOracle: "0xeEE1b5C56E82377D5C2Da2ff2FAcF6B3C1D14c66",
   },
 };
@@ -220,12 +227,13 @@ const ABIS = {
   BCFToken: [OWN, "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)", "function totalSupply() view returns (uint256)", "function isExemptFromFees(address) view returns (bool)", "function setExemptFromFees(address,bool)", "function liquidityPool() view returns (address)"],
   MockUSDT: [OWN, "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)", "function approve(address,uint256) returns (bool)", "function mint(address,uint256)"],
   Operations: [OWN, "function bcfPrice() view returns (uint256)", "function setBCFPrice(uint256)", "function getRedeemPrice() view returns (uint256)", "function getBuyPrice() view returns (uint256)", "function getUSDTPoolBalance() view returns (uint256)", "function getPoolBalance() view returns (uint256)", "function fundUSDTPool(uint256)", "function getCredit(address) view returns (uint256)", "function transferFunds(address,uint256)", "function transferUSDTFunds(address,uint256)", "function providerWallet() view returns (address)", "function companyFeeWallet() view returns (address)", "function setProviderWallet(address)", "function setCompanyFeeWallet(address)", "function investmentContract() view returns (address)", "function setInvestmentContract(address)", "function referralContract() view returns (address)", "function setReferralContract(address)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
-  Investment: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function marketingFund() view returns (address)", "function setInvestmentFund(address)", "function setMarketingFund(address)", "function getUserPurchases(address) view returns (uint256[])", "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint256,uint256,uint256,bool)", "function bcfIssued(uint256) view returns (uint256)", "function insuranceContract() view returns (address)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
-  Node: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function setInvestmentFund(address)", "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
+  Investment: [OWN, "function maxPurchaseU() view returns (uint256)", "function setMaxPurchase(uint256)", "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function marketingFund() view returns (address)", "function setInvestmentFund(address)", "function setMarketingFund(address)", "function getUserPurchases(address) view returns (uint256[])", "function getPurchaseInfo(uint256) view returns (address,uint8,uint256,uint256,uint256,uint256,uint256,bool)", "function bcfIssued(uint256) view returns (uint256)", "function insuranceContract() view returns (address)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
+  Node: [OWN, "function maxPurchaseU() view returns (uint256)", "function setMaxPurchase(uint256)", "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function investmentFund() view returns (address)", "function setInvestmentFund(address)", "function getNodeInfo(address) view returns (uint8,uint256,uint256,uint256,uint256,uint256)", "function priceOracle() view returns (address)", "function setPriceOracle(address)"],
   Insurance: [OWN, "function secondsPerMonth() view returns (uint256)", "function setSecondsPerMonth(uint256)", "function fund(uint256)", "function getPolicy(uint256) view returns (uint256,uint256,uint256,bool)", "function getProtectionAmount(uint256) view returns (uint256)"],
   Referral: [OWN, "function users(address) view returns (address,uint256,uint256,uint256,uint8,uint256,uint256,bool)", "function levelConfigs(uint8) view returns (uint256,uint16)", "function setLevelConfig(uint8,uint256,uint16)", "function investmentContract() view returns (address)", "function setInvestmentContract(address)", "function operationsContract() view returns (address)", "function setOperationsContract(address)"],
   PriceOracle: [OWN, "function getPrice() view returns (uint256)", "function manualPriceU() view returns (uint256)", "function setManualPrice(uint256)", "function pair() view returns (address)", "function setPair(address,bool)"],
 };
+ABIS.Pair = ["function getReserves() view returns (uint112,uint112,uint32)", "function token0() view returns (address)"];
 const OWNED = ["MockUSDT","BCFToken","Operations","Investment","Node","Insurance","Referral","PriceOracle"];
 const ZERO = ethers.ZeroAddress;
 let provider = null, signer = null, account = null;
@@ -363,7 +371,33 @@ async function lookup() {
     </tbody></table></div></div></div>`;
 }
 
-async function refreshAll() { await Promise.all([refreshOverview(), refreshSettings(), refreshLevels()]); }
+let capSuggested = 0;
+async function refreshCap() {
+  const orc = C("PriceOracle");
+  const pairAddr = await safe(orc.pair());
+  const [invCap, nodeCap] = await Promise.all([safe(C("Investment").maxPurchaseU()), safe(C("Node").maxPurchaseU())]);
+  let html = "";
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  if (pairAddr && pairAddr !== ZERO) {
+    const P = new ethers.Contract(pairAddr, ABIS.Pair, readProvider);
+    const [res, t0] = await Promise.all([safe(P.getReserves()), safe(P.token0())]);
+    if (res && t0) {
+      const bcfIs0 = t0.toLowerCase() === CONFIG.addresses.BCFToken.toLowerCase();
+      const rb = bcfIs0 ? res[0] : res[1], ru = bcfIs0 ? res[1] : res[0];
+      const ruN = Number(ethers.formatUnits(ru, 18)), rbN = Number(ethers.formatUnits(rb, 18));
+      capSuggested = Math.floor(ruN * 0.20 / 100) * 100;
+      html += kv("Pool USDT reserve", ruN.toLocaleString(undefined, { maximumFractionDigits: 0 }) + " USDT");
+      html += kv("Pool BCF reserve", rbN.toLocaleString(undefined, { maximumFractionDigits: 0 }) + " BCF");
+      html += kv("Pool price", rbN > 0 ? "$" + (ruN / rbN).toFixed(4) : "—");
+      html += kv("Largest plan that still swaps on Pancake", "≈ " + Math.floor(ruN * 0.217).toLocaleString() + " USDT");
+      html += kv("Suggested limit (20% of pool)", capSuggested.toLocaleString() + " USDT");
+    }
+  } else html += kv("Pool", "no pair set on the oracle");
+  const f = (w) => w == null ? "n/a (older contract)" : (w === 0n ? "unlimited" : Number(ethers.formatUnits(w, 18)).toLocaleString() + " USDT");
+  html += kv("Investment limit", f(invCap)) + kv("Node limit", f(nodeCap));
+  $("capInfo").innerHTML = html;
+}
+async function refreshAll() { await Promise.all([refreshOverview(), refreshSettings(), refreshLevels(), refreshCap()]); }
 
 // ---------- wiring ----------
 $("connectBtn").onclick = connect;
@@ -411,6 +445,15 @@ $("btnAuthFix").onclick = async () => {
 };
 $("btnLevel").onclick = () => { const lv = num("lvNum"), th = $("lvThreshold").value, pct = num("lvPct"); if (!need(lv >= 1 && lv <= 10, "Level must be 1-10") || !need(th !== "" && pct >= 0, "Enter threshold and rate") || !mustOwn("Referral")) return; tx(`Set V${lv}: ${th} USDT → ${pct}%`, () => C("Referral", true).setLevelConfig(lv, ethers.parseUnits(String(th), 18), Math.round(pct * 100))); };
 $("btnMem").onclick = lookup;
+
+const setCap = async (usdt) => {
+  if (!need(usdt >= 0, "Enter 0 or a positive number")) return;
+  if (!confirm(usdt === 0 ? "Remove the per-purchase limit on Investment and Node?" : `Set the per-purchase limit to ${usdt.toLocaleString()} USDT on Investment and Node?`)) return;
+  const w = ethers.parseUnits(String(usdt), 18);
+  for (const n of ["Investment", "Node"]) { if (!mustOwn(n)) return; const ok = await tx(`${n}.setMaxPurchase(${usdt})`, () => C(n, true).setMaxPurchase(w)); if (!ok) return; }
+};
+$("btnCapSet").onclick = () => setCap(Number($("capNew").value || 0));
+$("btnCapSuggest").onclick = () => { if (!need(capSuggested > 0, "Pool depth not loaded yet")) return; $("capNew").value = capSuggested; setCap(capSuggested); };
 
 refreshAll();
 </script>
